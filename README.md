@@ -1,4 +1,4 @@
-# Twitter 书签查看器
+# X/Twitter Bookmarks查看器
 
 使用 React + TypeScript + Vite 构建的 Twitter 书签查看工具，可以展示 Twitter 导出的书签 JSON 数据。
 
@@ -32,9 +32,22 @@ src/
 
 ## 部署到 Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_USERNAME/X_Bookmarks)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/occva/X_Bookmarks)
 
 
+## 获取数据
+
+使用 [twitter-web-exporter](https://github.com/prinsss/twitter-web-exporter) 导出 Twitter 书签为 JSON 格式。
+
+1. 安装 Tampermonkey 或 Violentmonkey 浏览器扩展
+2. 安装 twitter-web-exporter 用户脚本
+3. 在 Twitter 书签页面使用脚本导出为 JSON 格式
+
+## 使用方法
+
+1. 点击页面上的"选择 JSON 文件"按钮
+2. 选择 twitter-web-exporter 导出的书签 JSON 文件
+3. 推文会自动加载并显示
 
 ## 功能特性
 
@@ -69,17 +82,5 @@ src/
 - 时间相对格式化（X天前、X小时前等）
 - 数字格式化显示（K、M 单位）
 
-## 获取数据
 
-使用 [twitter-web-exporter](https://github.com/prinsss/twitter-web-exporter) 导出 Twitter 书签为 JSON 格式。
-
-1. 安装 Tampermonkey 或 Violentmonkey 浏览器扩展
-2. 安装 twitter-web-exporter 用户脚本
-3. 在 Twitter 书签页面使用脚本导出为 JSON 格式
-
-## 使用方法
-
-1. 点击页面上的"选择 JSON 文件"按钮
-2. 选择 twitter-web-exporter 导出的书签 JSON 文件
-3. 推文会自动加载并显示
 
