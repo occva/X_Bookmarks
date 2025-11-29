@@ -1,4 +1,4 @@
-import type { Tweet, QuotedTweet, User, Media } from '../types'
+import type { Tweet, QuotedTweet, Media } from '../types'
 
 /**
  * 从推文数据中提取用户信息
@@ -10,7 +10,6 @@ export function extractUserInfo(tweet: Tweet): {
 } {
   const user =
     tweet.metadata?.core?.user_results?.result ||
-    tweet.metadata?.legacy?.user ||
     null
 
   return {
@@ -96,8 +95,8 @@ export function extractQuotedTweetInfo(quotedTweet: QuotedTweet): {
 
   const mediaArray = quotedMedia
     .map((m) => ({
-      original: m.media_url_https || m.url || m.original || '',
-      thumbnail: m.media_url_https || m.url || m.thumbnail || '',
+      original: m.url || m.original || '',
+      thumbnail: m.url || m.thumbnail || '',
     }))
     .filter((m) => m.original || m.thumbnail)
 
@@ -120,7 +119,7 @@ export function extractQuotedTweetInfo(quotedTweet: QuotedTweet): {
  */
 export function processTweetMedia(
   media: Media[] | undefined,
-  tweetId: string
+  _tweetId: string
 ): Media[] {
   if (!media || media.length === 0) return []
 

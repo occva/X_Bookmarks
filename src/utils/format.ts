@@ -106,7 +106,7 @@ export function formatTweetText(text: string, tweet: Tweet): string {
   const mentionRegex = /@([a-zA-Z0-9_]+)/g
   formatted = formatted.replace(
     mentionRegex,
-    (match, username) =>
+    (_match, username) =>
       `<a href="https://twitter.com/${username}" target="_blank" rel="noopener noreferrer" class="tweet-link" style="color: #1d9bf0; text-decoration: none;">@${username}</a>`
   )
 
@@ -114,7 +114,7 @@ export function formatTweetText(text: string, tweet: Tweet): string {
   const hashtagRegex = /#([a-zA-Z0-9_]+)/g
   formatted = formatted.replace(
     hashtagRegex,
-    (match, hashtag) =>
+    (_match, hashtag) =>
       `<a href="https://twitter.com/hashtag/${hashtag}" target="_blank" rel="noopener noreferrer" class="tweet-link" style="color: #1d9bf0; text-decoration: none;">#${hashtag}</a>`
   )
 
