@@ -1,0 +1,190 @@
+.tweetCard {
+  padding: 12px 16px;
+  border-bottom: 1px solid #2f3336;
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .tweetCard {
+    padding: 12px;
+  }
+}
+
+.tweetCard:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.tweetHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tweetAvatarLink {
+  flex-shrink: 0;
+  text-decoration: none;
+  display: block;
+}
+
+.tweetAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+
+.tweetAvatarLink:hover .tweetAvatar {
+  opacity: 0.8;
+}
+
+.tweetContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.tweetUserInfo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.tweetUserName {
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+
+.tweetUserHandle {
+  color: #71767b;
+  font-size: 15px;
+}
+
+.tweetTime {
+  color: #71767b;
+  font-size: 15px;
+  margin-left: 4px;
+}
+
+.tweetTime::before {
+  content: '·';
+  margin-right: 4px;
+}
+
+.duplicateBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(29, 155, 240, 0.2);
+  color: #1d9bf0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  box-shadow: 0 1px 3px rgba(29, 155, 240, 0.3);
+  line-height: 1.2;
+}
+
+.tweetTextWrapper {
+  margin: 4px 0 12px;
+}
+
+.tweetText {
+  color: #e7e9ea;
+  font-size: 15px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.tweetExpandBtn {
+  background: none;
+  border: none;
+  color: #1d9bf0;
+  font-size: 15px;
+  padding: 0;
+  margin-top: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tweetExpandBtn:hover {
+  text-decoration: underline;
+}
+
+.tweetActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 425px;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+
+@media (max-width: 768px) {
+  .tweetActions {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .tweetAction {
+    padding: 6px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .tweetAction svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.tweetAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #71767b;
+  font-size: 13px;
+  padding: 8px;
+  border-radius: 20px;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.tweetAction:hover {
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+.tweetAction.reply:hover {
+  color: #1d9bf0;
+}
+
+.tweetAction.retweet:hover {
+  color: #00ba7c;
+}
+
+.tweetAction.like:hover {
+  color: #f91880;
+}
+
+.tweetAction.bookmark:hover {
+  color: #1d9bf0;
+}
+
+.tweetAction svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.tweetActionCount {
+  min-width: 36px;
+  text-align: left;
+}
+

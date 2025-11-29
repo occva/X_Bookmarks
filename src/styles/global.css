@@ -1,0 +1,28 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  background-color: #000;
+  color: #fff;
+  line-height: 1.5;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* 链接样式 */
+a.tweet-link {
+  color: #1d9bf0;
+  text-decoration: none;
+}
+
+a.tweet-link:hover {
+  text-decoration: underline;
+}
+

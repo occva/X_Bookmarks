@@ -1,0 +1,115 @@
+.statsCard {
+  background-color: #202327;
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.statsCard h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.statItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.statLabel {
+  color: #71767b;
+  font-size: 15px;
+}
+
+.statValue {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.statValueButton {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.statValueButton:hover {
+  color: #1d9bf0;
+}
+
+.userList {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2f3336;
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.userList::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.emptyMessage {
+  color: #71767b;
+  font-size: 14px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.userItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #2f3336;
+}
+
+.userItem:last-child {
+  border-bottom: none;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.userName {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.userHandle {
+  background: none;
+  border: none;
+  color: #1d9bf0;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: text-decoration 0.2s;
+}
+
+.userHandle:hover {
+  text-decoration: underline;
+}
+
+.userCount {
+  color: #71767b;
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 40px;
+  text-align: right;
+}
+

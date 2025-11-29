@@ -1,0 +1,64 @@
+/* 移动端页面容器 - 完全独立，不影响PC端 */
+.mobilePageContainer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 70px;
+  z-index: 1000;
+  overflow-y: auto;
+  background-color: #000;
+}
+
+@media (min-width: 769px) {
+  .mobilePageContainer {
+    display: none;
+  }
+}
+
+.container {
+  display: flex;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+.mainContent {
+  flex: 1;
+  border-left: 1px solid #2f3336;
+  border-right: 1px solid #2f3336;
+  min-height: 100vh;
+}
+
+/* PC端样式 */
+@media (min-width: 769px) {
+  .desktopOnly {
+    display: block;
+  }
+
+  .mobileOnly {
+    display: none;
+  }
+}
+
+/* 移动端适配：为底部导航留出空间 */
+@media (max-width: 768px) {
+  .container {
+    max-width: 100%;
+  }
+
+  .mainContent {
+    padding-bottom: 70px;
+    border-left: none;
+    border-right: none;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
+  .mobileOnly {
+    display: block;
+  }
+}
+
