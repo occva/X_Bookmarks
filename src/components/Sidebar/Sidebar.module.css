@@ -1,0 +1,63 @@
+.sidebar {
+  width: 275px;
+  padding: 0 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebarContent {
+  padding: 8px 0;
+}
+
+.logo {
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.twitterLogo {
+  width: 32px;
+  height: 32px;
+  fill: #fff;
+}
+
+.navMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 30px;
+  transition: background-color 0.2s;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.navItem:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.navItem.active {
+  font-weight: 700;
+}
+
+.navItem svg {
+  width: 26px;
+  height: 26px;
+  fill: currentColor;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+}
+

@@ -62,6 +62,13 @@ export function useTweets() {
 
       if (errors.length > 0) {
         console.warn('部分文件加载失败:', errors)
+        // 检测 JSON 格式错误
+        errors.forEach((errorMsg) => {
+          if (errorMsg.includes('JSON 格式错误') || errorMsg.includes('不是数组格式')) {
+            // 标记为 JSON 错误，将在 App.tsx 中处理
+            ;(window as any).__lastJSONError = errorMsg
+          }
+        })
       }
 
       const deduplicatedTweets = deduplicateTweets(allTweets)
@@ -70,6 +77,10 @@ export function useTweets() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '加载文件时发生未知错误'
       setError(errorMessage)
+      // 检测 JSON 格式错误
+      if (err instanceof Error && (err as any).isJSONError) {
+        ;(window as any).__lastJSONError = errorMessage
+      }
       setLoading(false)
     }
   }, [])
@@ -97,8 +108,20 @@ export function useTweets() {
         return false
       }
 
+      // 如果有部分 URL 失败，显示警告信息
       if (errors.length > 0) {
+        const successCount = urlArray.length - errors.length
+        const errorMessage = `成功加载 ${successCount} 个 URL，${errors.length} 个失败: ${errors.join('; ')}`
+        setError(errorMessage)
         console.warn('部分 URL 加载失败:', errors)
+        // 检测 JSON 格式错误
+        errors.forEach((errorMsg) => {
+          if (errorMsg.includes('JSON 格式错误') || errorMsg.includes('不是数组格式')) {
+            ;(window as any).__lastJSONError = errorMsg
+          }
+        })
+      } else {
+        setError(null)
       }
 
       const deduplicatedTweets = deduplicateTweets(allTweets)
@@ -108,6 +131,10 @@ export function useTweets() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '加载过程中发生错误，请重试'
       setError(errorMessage)
+      // 检测 JSON 格式错误
+      if (err instanceof Error && (err as any).isJSONError) {
+        ;(window as any).__lastJSONError = errorMessage
+      }
       setLoading(false)
       console.error('从 URL 加载失败:', err)
       return false

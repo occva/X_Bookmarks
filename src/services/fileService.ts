@@ -26,16 +26,32 @@ export function readJSONFromFile(file: File): Promise<Tweet[]> {
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string
-        const data = JSON.parse(content)
+        let data: any
+        
+        try {
+          data = JSON.parse(content)
+        } catch (parseError) {
+          // 检测 JSON 格式错误
+          const errorMessage = parseError instanceof Error ? parseError.message : '未知错误'
+          const error = new Error(`文件 ${file.name} 的 JSON 格式错误: ${errorMessage}`)
+          ;(error as any).isJSONError = true
+          ;(error as any).fileName = file.name
+          ;(error as any).jsonContent = content.substring(0, 200) // 保存前200个字符用于调试
+          reject(error)
+          return
+        }
 
         if (!Array.isArray(data)) {
-          reject(new Error(`文件 ${file.name} 的内容不是数组格式`))
+          const error = new Error(`文件 ${file.name} 的内容不是数组格式，期望数组格式的推文数据`)
+          ;(error as any).isJSONError = true
+          ;(error as any).fileName = file.name
+          reject(error)
           return
         }
 
         resolve(data as Tweet[])
       } catch (err) {
-        reject(new Error(`文件 ${file.name} 的 JSON 格式错误: ${err instanceof Error ? err.message : String(err)}`))
+        reject(err)
       }
     }
 

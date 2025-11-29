@@ -3,6 +3,7 @@ import { STORAGE_KEYS, STORAGE_LIMITS } from '../constants/storage'
 export interface RecentFile {
   name: string
   url?: string
+  urls?: string[] // 多条 URL 数组
   timestamp: number
   type: 'file' | 'url'
 }
@@ -27,7 +28,7 @@ export function getRecentFiles(): RecentFile[] {
  * 添加文件到最近加载列表
  * 只保存URL类型的文件，最多保留指定数量的记录
  */
-export function addRecentFile(name: string, type: 'file' | 'url', url?: string): void {
+export function addRecentFile(name: string, type: 'file' | 'url', url?: string, urls?: string[]): void {
   if (type !== 'url') {
     return
   }
@@ -36,11 +37,17 @@ export function addRecentFile(name: string, type: 'file' | 'url', url?: string):
     const files = getRecentFiles()
     const urlFiles = files.filter((f) => f.type === 'url')
 
-    const filtered = urlFiles.filter((f) => !(f.name === name && f.url === url))
+    // 检查是否已存在相同的 URL 组合
+    const urlKey = urls ? urls.join('|') : url || ''
+    const filtered = urlFiles.filter((f) => {
+      const existingKey = f.urls ? f.urls.join('|') : f.url || ''
+      return existingKey !== urlKey
+    })
 
     const newFile: RecentFile = {
       name,
-      url,
+      url: urls && urls.length > 0 ? urls[0] : url, // 显示第一条 URL
+      urls: urls && urls.length > 1 ? urls : undefined, // 多条 URL 时保存数组
       timestamp: Date.now(),
       type: 'url',
     }
@@ -55,12 +62,22 @@ export function addRecentFile(name: string, type: 'file' | 'url', url?: string):
 /**
  * 删除最近加载的文件
  */
-export function removeRecentFile(name: string, type: 'file' | 'url', url?: string): void {
+export function removeRecentFile(name: string, type: 'file' | 'url', url?: string, urls?: string[]): void {
   try {
     const files = getRecentFiles()
-    const filtered = files.filter(
-      (f) => !(f.name === name && f.type === type && (!url || f.url === url))
-    )
+    const filtered = files.filter((f) => {
+      if (f.name !== name || f.type !== type) {
+        return true
+      }
+      // 如果提供了 urls 数组，比较数组；否则比较单个 url
+      if (urls && f.urls) {
+        return urls.join('|') !== f.urls.join('|')
+      }
+      if (url && f.url) {
+        return url !== f.url
+      }
+      return true
+    })
     localStorage.setItem(STORAGE_KEYS.RECENT_FILES, JSON.stringify(filtered))
   } catch (error) {
     console.error('删除最近文件失败:', error)

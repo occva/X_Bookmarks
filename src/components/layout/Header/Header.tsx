@@ -99,7 +99,9 @@ export const Header = forwardRef<HeaderRef, HeaderProps>(({ onFileSelect, onURLL
   const handleURLLoad = () => {
     const urls = url.split('\n').map(u => u.trim()).filter(u => u.length > 0)
     if (urls.length > 0) {
-      addRecentFile(urls[0], 'url', urls[0])
+      // 多条 URL 时保存为数组，显示名称使用第一条 URL
+      const displayName = urls.length > 1 ? `${urls[0]} (${urls.length}个URL)` : urls[0]
+      addRecentFile(displayName, 'url', urls[0], urls.length > 1 ? urls : undefined)
       onURLLoad(urls)
       setUrl('')
       setShowPanel(false)
@@ -110,9 +112,13 @@ export const Header = forwardRef<HeaderRef, HeaderProps>(({ onFileSelect, onURLL
   }
 
   const handleRecentFileClick = (file: RecentFile) => {
-    if (file.type === 'url' && file.url) {
-      onURLLoad(file.url)
-      setShowPanel(false)
+    if (file.type === 'url') {
+      // 如果有 urls 数组，加载所有 URL；否则加载单个 URL
+      const urlsToLoad = file.urls && file.urls.length > 0 ? file.urls : (file.url ? [file.url] : [])
+      if (urlsToLoad.length > 0) {
+        onURLLoad(urlsToLoad)
+        setShowPanel(false)
+      }
     } else if (file.type === 'file') {
       fileInputRef.current?.click()
     }
@@ -120,7 +126,7 @@ export const Header = forwardRef<HeaderRef, HeaderProps>(({ onFileSelect, onURLL
 
   const handleRemoveRecentFile = (e: React.MouseEvent, file: RecentFile) => {
     e.stopPropagation()
-    removeRecentFile(file.name, file.type, file.url)
+    removeRecentFile(file.name, file.type, file.url, file.urls)
     const allFiles = getRecentFiles()
     const urlFiles = allFiles.filter((f) => f.type === 'url')
     setRecentFiles(urlFiles)
@@ -232,7 +238,7 @@ export const Header = forwardRef<HeaderRef, HeaderProps>(({ onFileSelect, onURLL
             <div ref={recentFilesRef} className={styles.recentFilesSection}>
               <div className={styles.recentFilesHeader}>
                 <span className={styles.recentFilesTitle}>最近加载的JSON文件</span>
-                {recentFiles.length > 1 && (
+                {recentFiles.length > 3 && (
                   <button
                     className={styles.moreBtn}
                     onClick={() => setShowRecentFiles(!showRecentFiles)}
@@ -246,53 +252,32 @@ export const Header = forwardRef<HeaderRef, HeaderProps>(({ onFileSelect, onURLL
                 <div className={styles.emptyRecentFiles}>暂无最近加载的文件</div>
               ) : (
                 <>
-                  {recentFiles[0] && (
-                    <div className={styles.recentFileItem}>
+                  {(showRecentFiles ? recentFiles : recentFiles.slice(0, 3)).map((file, index) => (
+                    <div
+                      key={`${file.name}-${file.timestamp}-${index}`}
+                      className={styles.recentFileItem}
+                    >
                       <div
                         className={styles.recentFileInfo}
-                        onClick={() => handleRecentFileClick(recentFiles[0])}
+                        onClick={() => handleRecentFileClick(file)}
                       >
-                        <span className={styles.recentFileName}>{recentFiles[0].name}</span>
-                        {recentFiles[0].type === 'url' && (
-                          <span className={styles.recentFileType}>URL</span>
+                        <span className={styles.recentFileName}>{file.name}</span>
+                        {file.type === 'url' && (
+                          <span className={styles.recentFileType}>
+                            {file.urls && file.urls.length > 1 ? `${file.urls.length}个URL` : 'URL'}
+                          </span>
                         )}
                       </div>
                       <button
                         className={styles.removeRecentBtn}
-                        onClick={(e) => handleRemoveRecentFile(e, recentFiles[0])}
+                        onClick={(e) => handleRemoveRecentFile(e, file)}
                         type="button"
                         title="删除"
                       >
                         ×
                       </button>
                     </div>
-                  )}
-                  {showRecentFiles && recentFiles.length > 1 && (
-                    <div className={styles.recentFilesList}>
-                      {recentFiles.slice(1).map((file, index) => (
-                        <div
-                          key={`${file.name}-${file.timestamp}-${index + 1}`}
-                          className={styles.recentFileItem}
-                          onClick={() => handleRecentFileClick(file)}
-                        >
-                          <div className={styles.recentFileInfo}>
-                            <span className={styles.recentFileName}>{file.name}</span>
-                            {file.type === 'url' && (
-                              <span className={styles.recentFileType}>URL</span>
-                            )}
-                          </div>
-                          <button
-                            className={styles.removeRecentBtn}
-                            onClick={(e) => handleRemoveRecentFile(e, file)}
-                            type="button"
-                            title="删除"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  ))}
                 </>
               )}
             </div>

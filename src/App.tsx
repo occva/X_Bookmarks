@@ -5,11 +5,13 @@ import { MobileHeader } from './components/layout/MobileHeader/MobileHeader'
 import { TweetsContainer } from './components/features/TweetsContainer/TweetsContainer'
 import { RightSidebar } from './components/layout/RightSidebar/RightSidebar'
 import { ImageModal } from './components/ui/ImageModal/ImageModal'
+import { ToastContainer } from './components/ui/Toast/ToastContainer'
 import { BottomNavigation } from './components/layout/BottomNavigation/BottomNavigation'
 import { MobileStatsPage } from './pages/MobileStatsPage/MobileStatsPage'
 import { MobileLoadPage } from './pages/MobileLoadPage/MobileLoadPage'
 import { useTweets } from './hooks/useTweets'
 import { useImageModal } from './hooks/useImageModal'
+import { useToast } from './hooks/useToast'
 import styles from './App.module.css'
 
 type MobilePage = 'home' | 'bookmarks' | 'stats' | 'load'
@@ -33,6 +35,7 @@ function App() {
   const allImages = useMemo(() => getAllImages(), [tweets])
 
   const imageModal = useImageModal(allImages)
+  const toast = useToast()
 
   const findImageIndex = (imageInfo: { url: string; tweetId: string; index: number }) => {
     return allImages.findIndex(
@@ -79,6 +82,18 @@ function App() {
       }
     }
   }, [loading, tweets.length, mobilePage, justLoaded, error])
+
+  // 监听 JSON 格式错误并显示 Toast
+  useEffect(() => {
+    if (error) {
+      const lastJSONError = (window as any).__lastJSONError
+      if (lastJSONError) {
+        toast.showToast(lastJSONError, 'error', 8000)
+        // 清除标记
+        delete (window as any).__lastJSONError
+      }
+    }
+  }, [error, toast])
 
   const handleLoadBookmarksClick = () => {
     if (window.innerWidth <= 768) {
@@ -184,6 +199,7 @@ function App() {
         onPrev={imageModal.prevImage}
         onNext={imageModal.nextImage}
       />
+      <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
       <BottomNavigation
         onLoadBookmarksClick={handleLoadBookmarksClick}
         onStatsClick={handleStatsClick}
