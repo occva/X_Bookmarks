@@ -23,3 +23,207 @@ dist-ssr
 *.sln
 *.sw?
 
+# OS generated files
+Thumbs.db
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Local config files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# Output directories
+out
+build
+coverage
+.nyc_output
+
+# Dependency lock files (optional, based on preference)
+# package-lock.json
+# yarn.lock
+
+# Local data files
+*.db
+*.sqlite
+*.sqlite3
+data/
+local/
+files/
+
+# AI and LLM related files
+# OpenAI API keys and configs
+openai-api-key.txt
+openai-config.json
+# Anthropic/Claude configs
+anthropic-api-key.txt
+claude-config.json
+.claude/
+# Gemini configs
+gemini-api-key.txt
+# Hugging Face configs
+huggingface-token.txt
+# Other AI services
+cohere-api-key.txt
+replicate-api-key.txt
+# AI model files (often very large)
+*.bin
+*.safetensors
+*.gguf
+*.ggml
+# AI chat logs and sessions
+chat-logs/
+ai-sessions/
+conversation-history/
+prompt-history.json
+
+# Cursor AI Editor
+.cursorrules
+.cursor/
+
+# Tabnine AI Assistant
+.tabnine/
+.tabnine-config.json
+
+# GitHub Copilot
+copilot-chat-history/
+
+# Codeium
+.codeium/
+
+# AWS AI/ML services
+aws-credentials.json
+sagemaker-config/
+
+# Google Cloud AI
+gcp-credentials.json
+vertex-ai-config/
+
+# Azure AI Services
+azure-openai-config.json
+cognitive-services-config/
+
+# LangChain
+langchain-config.json
+langsmith-config.json
+
+# Vector databases
+chroma_db/
+pinecone-config.json
+weaviate-config.json
+faiss_index/
+
+# AI notebooks and experiments
+jupyter_notebooks/
+*.ipynb
+mlflow/
+ml-experiments/
+wandb/
+
+# Docker and containerization
+.dockerignore
+docker-compose.override.yml
+docker-compose.dev.yml
+docker-compose.prod.yml
+
+# Kubernetes
+k8s-dev/
+k8s-prod/
+*.kubeconfig
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Database
+*.sql.dump
+*.db-shm
+*.db-wal
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Testing
+.nyc_output
+coverage/
+.coverage
+*.lcov
+
+# Package managers
+.pnpm-debug.log*
+.yarn-integrity
+.npm
+.yarn/cache
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary folders
+tmp/
+temp/
+.tmp/
+
+# Log files
+logs/
+*.log
+
+# Error logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/*.code-snippets
+
+# Local History for VS Code
+.vscode/history/
+
+# Built Visual Studio Code
+.vscode/**/*.vsix
+
+# JetBrains
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Vim
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Project specific
+config/local.js
+config/local.json
+private/
+secrets/
+
