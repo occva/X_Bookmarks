@@ -25,12 +25,19 @@ function deduplicateTweets(tweets: Tweet[]): Tweet[] {
     }
   })
 
-  return order.map((id) => {
+  const result = order.map((id) => {
     const { tweet, count } = tweetMap.get(id)!
     return {
       ...tweet,
       duplicateCount: count,
     }
+  })
+
+  // 按 created_at 时间戳排序（降序，最新的在前）
+  return result.sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+    return dateB - dateA
   })
 }
 
