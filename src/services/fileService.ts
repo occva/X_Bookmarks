@@ -1,6 +1,21 @@
 import { FILE_TYPES } from '../constants/api'
 import type { Tweet } from '../types'
 
+type JSONFileError = Error & {
+  isJSONError?: boolean
+  fileName?: string
+  jsonContent?: string
+}
+
+function createJSONFileError(
+  message: string,
+  details: Omit<JSONFileError, 'name' | 'message'> = {}
+): JSONFileError {
+  const error = new Error(message) as JSONFileError
+  Object.assign(error, details)
+  return error
+}
+
 /**
  * 验证文件是否为有效的 JSON 文件
  */
@@ -25,26 +40,28 @@ export function readJSONFromFile(file: File): Promise<Tweet[]> {
 
     reader.onload = (e) => {
       try {
-        const content = e.target?.result as string
-        let data: any
+        const content = typeof e.target?.result === 'string' ? e.target.result : ''
+        let data: unknown
         
         try {
           data = JSON.parse(content)
         } catch (parseError) {
           // 检测 JSON 格式错误
           const errorMessage = parseError instanceof Error ? parseError.message : '未知错误'
-          const error = new Error(`文件 ${file.name} 的 JSON 格式错误: ${errorMessage}`)
-          ;(error as any).isJSONError = true
-          ;(error as any).fileName = file.name
-          ;(error as any).jsonContent = content.substring(0, 200) // 保存前200个字符用于调试
+          const error = createJSONFileError(`文件 ${file.name} 的 JSON 格式错误: ${errorMessage}`, {
+            isJSONError: true,
+            fileName: file.name,
+            jsonContent: content.substring(0, 200), // 保存前200个字符用于调试
+          })
           reject(error)
           return
         }
 
         if (!Array.isArray(data)) {
-          const error = new Error(`文件 ${file.name} 的内容不是数组格式，期望数组格式的推文数据`)
-          ;(error as any).isJSONError = true
-          ;(error as any).fileName = file.name
+          const error = createJSONFileError(`文件 ${file.name} 的内容不是数组格式，期望数组格式的推文数据`, {
+            isJSONError: true,
+            fileName: file.name,
+          })
           reject(error)
           return
         }

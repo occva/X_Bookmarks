@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useState, useMemo, useCallback } from 'react'
 import type { Tweet, ImageInfo } from '../../../types'
 import {
   extractUserInfo,
@@ -21,35 +21,40 @@ export const TweetCard = memo(function TweetCard({
 }: TweetCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const userInfo = extractUserInfo(tweet)
-  const fullText = extractFullText(tweet)
-  const media = processTweetMedia(tweet.media, tweet.id)
-  const timeAgo = formatTime(tweet.created_at)
+  const userInfo = useMemo(() => extractUserInfo(tweet), [tweet])
+  const fullText = useMemo(() => extractFullText(tweet), [tweet])
+  const media = useMemo(
+    () => processTweetMedia(tweet.media),
+    [tweet.media]
+  )
+  const timeAgo = useMemo(() => formatTime(tweet.created_at), [tweet.created_at])
   const isLongText = fullText.length > 280
 
-  const handleToggleExpand = (e: React.MouseEvent) => {
+  const handleToggleExpand = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setIsExpanded(!isExpanded)
-  }
+    setIsExpanded((prev) => !prev)
+  }, [])
 
-  const handleCardClick = () => {
+  const handleCardClick = useCallback(() => {
     if (isLongText) {
-      setIsExpanded(!isExpanded)
+      setIsExpanded((prev) => !prev)
     }
-  }
+  }, [isLongText])
 
-  let textHtml = ''
-  if (fullText) {
+  const textHtml = useMemo(() => {
+    if (!fullText) {
+      return ''
+    }
+
     if (isLongText) {
       const truncatedText = truncateText(fullText)
       const fullTextHtml = formatTweetText(fullText, tweet)
       const truncatedTextHtml = formatTweetText(truncatedText, tweet)
-
-      textHtml = isExpanded ? fullTextHtml : truncatedTextHtml
-    } else {
-      textHtml = formatTweetText(fullText, tweet)
+      return isExpanded ? fullTextHtml : truncatedTextHtml
     }
-  }
+
+    return formatTweetText(fullText, tweet)
+  }, [fullText, isLongText, isExpanded, tweet])
 
   const quotedTweet =
     tweet.metadata?.quoted_status_result?.result || tweet.quoted_status

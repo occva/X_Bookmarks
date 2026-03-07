@@ -6,6 +6,20 @@ interface FetchOptions extends RequestInit {
   retryCount?: number
 }
 
+type JSONFetchError = Error & {
+  isJSONError?: boolean
+  jsonContent?: string
+}
+
+function createJSONFetchError(
+  message: string,
+  details: Omit<JSONFetchError, 'name' | 'message'> = {}
+): JSONFetchError {
+  const error = new Error(message) as JSONFetchError
+  Object.assign(error, details)
+  return error
+}
+
 /**
  * 检测是否是 GitHub URL（Raw 或网页格式）
  */
@@ -176,7 +190,7 @@ async function tryFetchURL(
     }
 
     return response
-  } catch (error) {
+  } catch {
     // 返回 null 表示失败，让调用者尝试下一个 URL
     return null
   }
@@ -196,7 +210,6 @@ async function fetchWithTimeout(
   // 获取所有可用的代理 URL
   const allURLs = getAllProxyURLs(url)
   const startTime = Date.now()
-  let lastError: Error | null = null
 
   // 对每个 URL 尝试（快速失败策略）
   for (const targetURL of allURLs) {
@@ -235,7 +248,7 @@ async function fetchWithTimeout(
   }
 
   // 所有 URL 都失败了
-  throw lastError || new Error('所有请求方式都失败了，请检查网络连接或 URL 是否有效')
+  throw new Error('所有请求方式都失败了，请检查网络连接或 URL 是否有效')
 }
 
 /**
@@ -253,21 +266,23 @@ export async function fetchJSONFromURL(url: string): Promise<Tweet[]> {
     // 统一先读取文本，然后解析 JSON（避免响应体被多次读取）
     const text = await response.text()
     
-    let data: any
+    let data: unknown
     try {
       data = JSON.parse(text)
     } catch (parseError) {
       // 检测 JSON 格式错误
       const errorMessage = parseError instanceof Error ? parseError.message : '未知错误'
-      const error = new Error(`JSON 格式错误: ${errorMessage}`)
-      ;(error as any).isJSONError = true
-      ;(error as any).jsonContent = text.substring(0, 200) // 保存前200个字符用于调试
+      const error = createJSONFetchError(`JSON 格式错误: ${errorMessage}`, {
+        isJSONError: true,
+        jsonContent: text.substring(0, 200), // 保存前200个字符用于调试
+      })
       throw error
     }
 
     if (!Array.isArray(data)) {
-      const error = new Error('返回的数据不是数组格式，期望数组格式的推文数据')
-      ;(error as any).isJSONError = true
+      const error = createJSONFetchError('返回的数据不是数组格式，期望数组格式的推文数据', {
+        isJSONError: true,
+      })
       throw error
     }
 
@@ -289,28 +304,83 @@ export async function fetchJSONFromURL(url: string): Promise<Tweet[]> {
   }
 }
 
+interface URLLoadResult {
+  index: number
+  url: string
+  tweets: Tweet[]
+  error: string | null
+}
+
+async function fetchURLsWithConcurrency(urls: string[], maxConcurrency: number): Promise<URLLoadResult[]> {
+  const results: URLLoadResult[] = new Array(urls.length)
+  let nextIndex = 0
+
+  const getNextIndex = (): number | null => {
+    if (nextIndex >= urls.length) {
+      return null
+    }
+    const current = nextIndex
+    nextIndex += 1
+    return current
+  }
+
+  const worker = async () => {
+    let currentIndex = getNextIndex()
+    while (currentIndex !== null) {
+
+      const url = urls[currentIndex]
+      console.log(`正在加载 URL ${currentIndex + 1}/${urls.length}: ${url}`)
+
+      try {
+        const tweetsData = await fetchJSONFromURL(url)
+        console.log(`URL ${currentIndex + 1} 加载成功，获得 ${tweetsData.length} 条推文`)
+        results[currentIndex] = {
+          index: currentIndex,
+          url,
+          tweets: tweetsData,
+          error: null,
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : '未知错误'
+        console.error(`从 URL ${currentIndex + 1} 加载失败:`, err)
+        results[currentIndex] = {
+          index: currentIndex,
+          url,
+          tweets: [],
+          error: errorMessage,
+        }
+      }
+
+      currentIndex = getNextIndex()
+    }
+  }
+
+  const workerCount = Math.max(1, Math.min(maxConcurrency, urls.length))
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
+}
+
 /**
  * 从多个 URL 加载 JSON 数据
  */
 export async function fetchJSONFromURLs(urls: string[]): Promise<{ data: Tweet[]; errors: string[] }> {
+  const uniqueUrls = Array.from(new Set(urls.map((url) => url.trim()).filter(Boolean)))
   const allTweets: Tweet[] = []
   const errors: string[] = []
 
-  console.log(`开始加载 ${urls.length} 个 URL`)
-  
-  for (let i = 0; i < urls.length; i++) {
-    const url = urls[i]
-    console.log(`正在加载 URL ${i + 1}/${urls.length}: ${url}`)
-    try {
-      const tweetsData = await fetchJSONFromURL(url)
-      console.log(`URL ${i + 1} 加载成功，获得 ${tweetsData.length} 条推文`)
-      allTweets.push(...tweetsData)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '未知错误'
-      errors.push(`URL ${i + 1} (${url}): ${errorMessage}`)
-      console.error(`从 URL ${i + 1} 加载失败:`, err)
+  console.log(
+    `开始加载 ${uniqueUrls.length} 个 URL（最大并发 ${API_CONFIG.MAX_CONCURRENT_URLS}）`
+  )
+
+  const results = await fetchURLsWithConcurrency(uniqueUrls, API_CONFIG.MAX_CONCURRENT_URLS)
+  results.forEach((result) => {
+    if (result.error) {
+      errors.push(`URL ${result.index + 1} (${result.url}): ${result.error}`)
+      return
     }
-  }
+
+    allTweets.push(...result.tweets)
+  })
 
   console.log(`加载完成: 成功 ${allTweets.length} 条推文，失败 ${errors.length} 个 URL`)
   return { data: allTweets, errors }

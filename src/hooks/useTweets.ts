@@ -10,6 +10,17 @@ export interface UserStats {
   count: number
 }
 
+type JSONError = Error & { isJSONError?: boolean }
+
+function markLastJSONError(message: string): void {
+  const globalWindow = window as Window & { __lastJSONError?: string }
+  globalWindow.__lastJSONError = message
+}
+
+function isJSONError(error: unknown): error is JSONError {
+  return error instanceof Error && Boolean((error as JSONError).isJSONError)
+}
+
 function deduplicateTweets(tweets: Tweet[]): Tweet[] {
   const tweetMap = new Map<string, { tweet: Tweet; count: number; index: number }>()
   const order: string[] = []
@@ -73,7 +84,7 @@ export function useTweets() {
         errors.forEach((errorMsg) => {
           if (errorMsg.includes('JSON 格式错误') || errorMsg.includes('不是数组格式')) {
             // 标记为 JSON 错误，将在 App.tsx 中处理
-            ;(window as any).__lastJSONError = errorMsg
+            markLastJSONError(errorMsg)
           }
         })
       }
@@ -85,8 +96,8 @@ export function useTweets() {
       const errorMessage = err instanceof Error ? err.message : '加载文件时发生未知错误'
       setError(errorMessage)
       // 检测 JSON 格式错误
-      if (err instanceof Error && (err as any).isJSONError) {
-        ;(window as any).__lastJSONError = errorMessage
+      if (isJSONError(err)) {
+        markLastJSONError(errorMessage)
       }
       setLoading(false)
     }
@@ -124,7 +135,7 @@ export function useTweets() {
         // 检测 JSON 格式错误
         errors.forEach((errorMsg) => {
           if (errorMsg.includes('JSON 格式错误') || errorMsg.includes('不是数组格式')) {
-            ;(window as any).__lastJSONError = errorMsg
+            markLastJSONError(errorMsg)
           }
         })
       } else {
@@ -139,8 +150,8 @@ export function useTweets() {
       const errorMessage = err instanceof Error ? err.message : '加载过程中发生错误，请重试'
       setError(errorMessage)
       // 检测 JSON 格式错误
-      if (err instanceof Error && (err as any).isJSONError) {
-        ;(window as any).__lastJSONError = errorMessage
+      if (isJSONError(err)) {
+        markLastJSONError(errorMessage)
       }
       setLoading(false)
       console.error('从 URL 加载失败:', err)
@@ -148,10 +159,10 @@ export function useTweets() {
     }
   }, [])
 
-  const getAllImages = useCallback((): ImageInfo[] => {
+  const allImages = useMemo((): ImageInfo[] => {
     const allImages: ImageInfo[] = []
     tweets.forEach((tweet) => {
-      const media = processTweetMedia(tweet.media, tweet.id)
+      const media = processTweetMedia(tweet.media)
       media.forEach((m, index) => {
         allImages.push({
           url: m.original || m.thumbnail || '',
@@ -213,7 +224,7 @@ export function useTweets() {
     error,
     loadTweetsFromFile,
     loadTweetsFromURL,
-    getAllImages,
+    allImages,
     userStats,
   }
 }

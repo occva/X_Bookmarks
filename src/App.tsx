@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { Sidebar } from './components/layout/Sidebar/Sidebar'
 import { Header, type HeaderRef } from './components/layout/Header/Header'
 import { MobileHeader } from './components/layout/MobileHeader/MobileHeader'
@@ -13,9 +13,19 @@ import { useTweets } from './hooks/useTweets'
 import { useImageModal } from './hooks/useImageModal'
 import { useToast } from './hooks/useToast'
 import { getRecentFiles } from './utils/storage'
+import type { ImageInfo } from './types'
 import styles from './App.module.css'
 
 type MobilePage = 'home' | 'bookmarks' | 'stats' | 'load'
+type ImageKey = Pick<ImageInfo, 'url' | 'tweetId' | 'index'>
+
+function getImageMapKey(image: ImageKey): string {
+  return `${image.tweetId}:${image.index}:${image.url}`
+}
+
+function isMobileViewport(): boolean {
+  return typeof window !== 'undefined' && window.innerWidth <= 768
+}
 
 function App() {
   const headerRef = useRef<HeaderRef>(null)
@@ -30,41 +40,46 @@ function App() {
     error,
     loadTweetsFromFile,
     loadTweetsFromURL,
-    getAllImages,
+    allImages,
     userStats,
   } = useTweets()
 
-  const allImages = useMemo(() => getAllImages(), [tweets])
+  const {
+    isOpen,
+    currentIndex,
+    currentImage,
+    totalImages,
+    openModal,
+    closeModal,
+    prevImage,
+    nextImage,
+  } = useImageModal(allImages)
+  const { toasts, showToast, removeToast } = useToast()
 
-  const imageModal = useImageModal(allImages)
-  const toast = useToast()
+  const imageIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    allImages.forEach((img, index) => {
+      map.set(getImageMapKey(img), index)
+    })
+    return map
+  }, [allImages])
 
-  const findImageIndex = (imageInfo: { url: string; tweetId: string; index: number }) => {
-    return allImages.findIndex(
-      (img) => img.url === imageInfo.url && img.tweetId === imageInfo.tweetId
-    )
-  }
-
-  const handleImageClick = (imageInfo: { url: string; tweetId: string; index: number }) => {
-    const index = findImageIndex(imageInfo)
-    if (index !== -1) {
-      imageModal.openModal(index)
+  const handleImageClick = useCallback((imageInfo: ImageInfo) => {
+    const index = imageIndexMap.get(getImageMapKey(imageInfo))
+    if (index !== undefined) {
+      openModal(index)
     }
-  }
+  }, [imageIndexMap, openModal])
 
-  const handleFileSelect = (file: File | File[]) => {
+  const handleFileSelect = useCallback((file: File | File[]) => {
     setJustLoaded(true)
     loadTweetsFromFile(file)
-  }
+  }, [loadTweetsFromFile])
 
-  const handleURLLoad = (url: string | string[]) => {
+  const handleURLLoad = useCallback((url: string | string[]) => {
     setJustLoaded(true)
     loadTweetsFromURL(url)
-  }
-
-  useEffect(() => {
-    prevLoadingRef.current = loading
-  }, [])
+  }, [loadTweetsFromURL])
 
   // 页面刷新时自动加载最近的URL
   useEffect(() => {
@@ -95,14 +110,13 @@ function App() {
     } catch (error) {
       console.error('自动加载最近URL失败:', error)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 只在组件挂载时执行一次，loadTweetsFromURL 是稳定的函数引用
+  }, [loadTweetsFromURL])
 
   useEffect(() => {
     const wasLoading = prevLoadingRef.current
     prevLoadingRef.current = loading
 
-    if (window.innerWidth <= 768 && mobilePage === 'load') {
+    if (isMobileViewport() && mobilePage === 'load') {
       if (wasLoading && !loading && justLoaded) {
         if (tweets.length > 0 && !error) {
           const timer = setTimeout(() => {
@@ -120,53 +134,56 @@ function App() {
   // 监听 JSON 格式错误并显示 Toast
   useEffect(() => {
     if (error) {
-      const lastJSONError = (window as any).__lastJSONError
+      const globalWindow = window as Window & { __lastJSONError?: string }
+      const lastJSONError = globalWindow.__lastJSONError
       if (lastJSONError) {
-        toast.showToast(lastJSONError, 'error', 8000)
+        showToast(lastJSONError, 'error', 8000)
         // 清除标记
-        delete (window as any).__lastJSONError
+        delete globalWindow.__lastJSONError
       }
     }
-  }, [error, toast])
+  }, [error, showToast])
 
-  const handleLoadBookmarksClick = () => {
-    if (window.innerWidth <= 768) {
+  const handleLoadBookmarksClick = useCallback(() => {
+    if (isMobileViewport()) {
       setMobilePage('load')
       setJustLoaded(false)
     } else {
       headerRef.current?.openLoadPanel()
     }
-  }
+  }, [])
 
-  const handleStatsClick = () => {
-    if (window.innerWidth <= 768) {
+  const handleStatsClick = useCallback(() => {
+    if (isMobileViewport()) {
       setMobilePage('stats')
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }
+  }, [])
 
-  const handleHomeClick = () => {
-    if (window.innerWidth <= 768) {
+  const handleHomeClick = useCallback(() => {
+    if (isMobileViewport()) {
       setMobilePage('home')
       setCurrentPage('home')
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }
+  }, [])
 
-  const handleBookmarksClick = () => {
-    if (window.innerWidth <= 768) {
+  const handleBookmarksClick = useCallback(() => {
+    if (isMobileViewport()) {
       setMobilePage('home')
       setCurrentPage('bookmarks')
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }
+  }, [])
 
-  const handleMobileBack = () => {
+  const handleMobileBack = useCallback(() => {
     setMobilePage('home')
-  }
+  }, [])
+
+  const shouldHideMainContent = isMobileViewport() && mobilePage !== 'home'
 
   return (
     <>
@@ -193,12 +210,7 @@ function App() {
       <div
         className={styles.container}
         style={{
-          display:
-            typeof window !== 'undefined' &&
-            window.innerWidth <= 768 &&
-            mobilePage !== 'home'
-              ? 'none'
-              : 'flex',
+          display: shouldHideMainContent ? 'none' : 'flex',
         }}
       >
         <Sidebar />
@@ -225,15 +237,15 @@ function App() {
       </div>
 
       <ImageModal
-        isOpen={imageModal.isOpen}
-        imageUrl={imageModal.currentImage?.url || ''}
-        currentIndex={imageModal.currentIndex}
-        totalImages={imageModal.totalImages}
-        onClose={imageModal.closeModal}
-        onPrev={imageModal.prevImage}
-        onNext={imageModal.nextImage}
+        isOpen={isOpen}
+        imageUrl={currentImage?.url || ''}
+        currentIndex={currentIndex}
+        totalImages={totalImages}
+        onClose={closeModal}
+        onPrev={prevImage}
+        onNext={nextImage}
       />
-      <ToastContainer toasts={toast.toasts} onClose={toast.removeToast} />
+      <ToastContainer toasts={toasts} onClose={removeToast} />
       <BottomNavigation
         onLoadBookmarksClick={handleLoadBookmarksClick}
         onStatsClick={handleStatsClick}

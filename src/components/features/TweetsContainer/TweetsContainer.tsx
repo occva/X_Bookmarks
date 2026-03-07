@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef, useState, useEffect } from 'react'
 import type { Tweet, ImageInfo } from '../../../types'
 import { TweetCard } from '../TweetCard/TweetCard'
 import styles from './TweetsContainer.module.css'
@@ -10,12 +10,49 @@ interface TweetsContainerProps {
   onImageClick: (imageInfo: ImageInfo) => void
 }
 
+const INITIAL_RENDER_COUNT = 60
+const LOAD_MORE_COUNT = 40
+
 export const TweetsContainer = memo(function TweetsContainer({
   tweets,
   loading,
   error,
   onImageClick,
 }: TweetsContainerProps) {
+  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER_COUNT)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_RENDER_COUNT)
+  }, [tweets, loading, error])
+
+  const hasMore = tweets.length > visibleCount
+
+  useEffect(() => {
+    if (!hasMore || loading || error || !loadMoreRef.current) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (entry.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + LOAD_MORE_COUNT, tweets.length))
+        }
+      },
+      {
+        root: null,
+        rootMargin: '480px 0px',
+        threshold: 0,
+      }
+    )
+
+    observer.observe(loadMoreRef.current)
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasMore, loading, error, tweets.length])
+
   const handleLinkClick = (e: React.MouseEvent) => {
     if (e.target instanceof HTMLElement) {
       if (e.target.tagName === 'A' || e.target.closest('a.tweet-link')) {
@@ -23,6 +60,11 @@ export const TweetsContainer = memo(function TweetsContainer({
       }
     }
   }
+
+  const visibleTweets = useMemo(
+    () => tweets.slice(0, visibleCount),
+    [tweets, visibleCount]
+  )
 
   const content = useMemo(() => {
     if (loading) {
@@ -54,12 +96,17 @@ export const TweetsContainer = memo(function TweetsContainer({
 
     return (
       <div onClick={handleLinkClick}>
-        {tweets.map((tweet) => (
+        {visibleTweets.map((tweet) => (
           <TweetCard key={tweet.id} tweet={tweet} onImageClick={onImageClick} />
         ))}
+        {hasMore && (
+          <div className={styles.loadMoreAnchor} ref={loadMoreRef}>
+            加载中...
+          </div>
+        )}
       </div>
     )
-  }, [tweets, loading, error, onImageClick])
+  }, [visibleTweets, loading, error, onImageClick, hasMore, tweets.length])
 
   return <div className={styles.tweetsContainer}>{content}</div>
 })

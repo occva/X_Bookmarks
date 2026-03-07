@@ -117,10 +117,7 @@ export function extractQuotedTweetInfo(quotedTweet: QuotedTweet): {
 /**
  * 处理推文媒体数据
  */
-export function processTweetMedia(
-  media: Media[] | undefined,
-  _tweetId: string
-): Media[] {
+export function processTweetMedia(media: Media[] | undefined): Media[] {
   if (!media || media.length === 0) return []
 
   return media
