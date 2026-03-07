@@ -6,10 +6,19 @@
 
 ## 技术栈
 
-- React 18.2.0
-- TypeScript 5.2.2
-- Vite 5.0.8
+- React 19.2.4
+- TypeScript 5.9.3
+- Vite 7.3.1
 - CSS Modules
+
+## 开发命令
+
+```bash
+pnpm install
+pnpm dev
+pnpm build
+pnpm lint
+```
 
 
 ## 项目结构
