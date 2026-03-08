@@ -3,6 +3,9 @@ import type { Tweet, ImageInfo } from '../types'
 import { processTweetMedia, extractUserInfo, extractQuotedTweetInfo } from '../utils/tweetParser'
 import { fetchJSONFromURLs } from '../services/apiService'
 import { readJSONFromFiles } from '../services/fileService'
+import { saveUploadedJSONFiles } from '../services/localFileService'
+import { enhanceTweetsText } from '../services/tweetTextEnhancer'
+import { addRecentFile } from '../utils/storage'
 
 export interface UserStats {
   name: string
@@ -70,6 +73,19 @@ export function useTweets() {
     }
 
     try {
+      try {
+        const { urls } = await saveUploadedJSONFiles(fileArray)
+        if (urls.length > 0) {
+          const displayName =
+            fileArray.length === 1
+              ? fileArray[0].name
+              : `${fileArray[0].name} 等 ${fileArray.length} 个文件`
+          addRecentFile(displayName, 'url', urls[0], urls.length > 1 ? urls : undefined)
+        }
+      } catch (saveError) {
+        console.warn('自动保存到本地 file 目录失败，将继续加载文件:', saveError)
+      }
+
       const { data: allTweets, errors } = await readJSONFromFiles(fileArray)
 
       if (allTweets.length === 0) {
@@ -90,7 +106,8 @@ export function useTweets() {
       }
 
       const deduplicatedTweets = deduplicateTweets(allTweets)
-      setTweets(deduplicatedTweets)
+      const enhancedTweets = await enhanceTweetsText(deduplicatedTweets)
+      setTweets(enhancedTweets)
       setLoading(false)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '加载文件时发生未知错误'
@@ -143,7 +160,8 @@ export function useTweets() {
       }
 
       const deduplicatedTweets = deduplicateTweets(allTweets)
-      setTweets(deduplicatedTweets)
+      const enhancedTweets = await enhanceTweetsText(deduplicatedTweets)
+      setTweets(enhancedTweets)
       setLoading(false)
       return true
     } catch (err) {

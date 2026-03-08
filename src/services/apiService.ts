@@ -108,6 +108,19 @@ function convertToGitHubAPIURL(url: string): string | null {
  */
 function getAllProxyURLs(url: string): string[] {
   const urls: string[] = []
+
+  // 本地相对路径或同源 URL（例如 /api/local-files/read?...）必须直连，
+  // 不能走第三方代理，否则会拿到非 JSON 内容。
+  try {
+    const parsed = new URL(url, window.location.origin)
+    const isRelativePath = url.startsWith('/')
+    const isSameOrigin = parsed.origin === window.location.origin
+    if (isRelativePath || isSameOrigin) {
+      return [parsed.pathname + parsed.search + parsed.hash]
+    }
+  } catch {
+    // 解析失败时继续走后续逻辑
+  }
   
   // CORS 代理列表（按可靠性排序）
   const proxies = [

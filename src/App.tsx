@@ -12,7 +12,8 @@ import { MobileLoadPage } from './pages/MobileLoadPage/MobileLoadPage'
 import { useTweets } from './hooks/useTweets'
 import { useImageModal } from './hooks/useImageModal'
 import { useToast } from './hooks/useToast'
-import { getRecentFiles } from './utils/storage'
+import { addRecentFile, getRecentFiles } from './utils/storage'
+import { getLatestSavedJSONFileURLs } from './services/localFileService'
 import type { ImageInfo } from './types'
 import styles from './App.module.css'
 
@@ -81,7 +82,7 @@ function App() {
     loadTweetsFromURL(url)
   }, [loadTweetsFromURL])
 
-  // 页面刷新时自动加载最近的URL
+  // 页面刷新时自动加载最近 URL；若没有 recent 记录则回退到本地 file 最新目录
   useEffect(() => {
     // 防止重复执行
     if (hasAutoLoadedRef.current) {
@@ -91,25 +92,46 @@ function App() {
     // 标记为已执行，避免重复加载
     hasAutoLoadedRef.current = true
 
-    try {
-      const recentFiles = getRecentFiles()
-      // 只加载URL类型的最近文件，按时间戳排序，取最新的
-      const urlFiles = recentFiles.filter((f) => f.type === 'url')
-      
-      if (urlFiles.length > 0) {
-        const mostRecent = urlFiles[0] // 已经按时间戳排序，第一个就是最新的
-        const urlsToLoad = mostRecent.urls && mostRecent.urls.length > 0 
-          ? mostRecent.urls 
-          : (mostRecent.url ? [mostRecent.url] : [])
-        
-        if (urlsToLoad.length > 0) {
-          setJustLoaded(true)
-          loadTweetsFromURL(urlsToLoad)
+    const autoLoad = async () => {
+      try {
+        const recentFiles = getRecentFiles()
+        // 只加载URL类型的最近文件，按时间戳排序，取最新的
+        const urlFiles = recentFiles.filter((f) => f.type === 'url')
+
+        if (urlFiles.length > 0) {
+          const mostRecent = urlFiles[0] // 已经按时间戳排序，第一个就是最新的
+          const urlsToLoad = mostRecent.urls && mostRecent.urls.length > 0
+            ? mostRecent.urls
+            : (mostRecent.url ? [mostRecent.url] : [])
+
+          if (urlsToLoad.length > 0) {
+            setJustLoaded(true)
+            loadTweetsFromURL(urlsToLoad)
+            return
+          }
         }
+
+        const latestLocalURLs = await getLatestSavedJSONFileURLs()
+        if (latestLocalURLs.length > 0) {
+          const displayName =
+            latestLocalURLs.length === 1
+              ? '本地最近上传文件'
+              : `本地最近上传文件 (${latestLocalURLs.length}个)`
+          addRecentFile(
+            displayName,
+            'url',
+            latestLocalURLs[0],
+            latestLocalURLs.length > 1 ? latestLocalURLs : undefined
+          )
+          setJustLoaded(true)
+          loadTweetsFromURL(latestLocalURLs)
+        }
+      } catch (error) {
+        console.warn('自动加载最近数据失败:', error)
       }
-    } catch (error) {
-      console.error('自动加载最近URL失败:', error)
     }
+
+    void autoLoad()
   }, [loadTweetsFromURL])
 
   useEffect(() => {

@@ -59,6 +59,37 @@ export function escapeHtml(text: string): string {
   })
 }
 
+function isUrlEntity(value: unknown): value is UrlEntity {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  const entity = value as Partial<UrlEntity>
+  return typeof entity.url === 'string'
+}
+
+function getTweetUrlEntities(tweet: Tweet): UrlEntity[] {
+  const extraTweet = tweet as Tweet & {
+    entities?: { urls?: unknown[] }
+    extended_entities?: { urls?: unknown[] }
+  }
+
+  const candidates = [
+    ...(tweet?.metadata?.legacy?.entities?.urls || []),
+    ...(tweet?.metadata?.legacy?.extended_entities?.urls || []),
+    ...(extraTweet.entities?.urls || []),
+    ...(extraTweet.extended_entities?.urls || []),
+  ]
+
+  return candidates.filter(isUrlEntity)
+}
+
+function removeBrokenStyleFragments(text: string): string {
+  if (!text) {
+    return ''
+  }
+  return text.replace(/(?:color:\s*)?#1d9bf0;\s*text-decoration:\s*none;?">/gi, '')
+}
+
 /**
  * 格式化推文文本（处理链接、@用户名、#话题）
  */
@@ -68,10 +99,7 @@ export function formatTweetText(text: string, tweet: Tweet): string {
   // 获取推文中的 URL 映射
   const urlMap: Record<string, string> = {}
   const displayUrlMap: Record<string, string> = {}
-  const urls =
-    tweet?.metadata?.legacy?.entities?.urls ||
-    tweet?.metadata?.legacy?.extended_entities?.urls ||
-    []
+  const urls = getTweetUrlEntities(tweet)
 
   if (urls && urls.length > 0) {
     urls.forEach((urlEntity: UrlEntity) => {
@@ -84,7 +112,7 @@ export function formatTweetText(text: string, tweet: Tweet): string {
   }
 
   // 先转义 HTML，避免 XSS
-  let formatted = escapeHtml(text)
+  let formatted = escapeHtml(removeBrokenStyleFragments(text))
 
   // 使用临时标记来避免在已处理的链接内再次处理
   const PLACEHOLDER_PREFIX = '___LINK_PLACEHOLDER_'
@@ -110,25 +138,25 @@ export function formatTweetText(text: string, tweet: Tweet): string {
     placeholders[placeholderIndex] = `<a href="${expandedUrl.replace(
       /"/g,
       '&quot;'
-    )}" target="_blank" rel="noopener noreferrer" class="tweet-link" style="color: #1d9bf0; text-decoration: none;">${displayUrl}</a>`
+    )}" target="_blank" rel="noopener noreferrer" class="tweet-link">${displayUrl}</a>`
     placeholderIndex++
     return placeholder
   })
 
-  // 第二步：处理 @用户名
-  const mentionRegex = /@([a-zA-Z0-9_]+)/g
-  formatted = formatted.replace(
-    mentionRegex,
-    (_match, username) =>
-      `<a href="https://twitter.com/${username}" target="_blank" rel="noopener noreferrer" class="tweet-link" style="color: #1d9bf0; text-decoration: none;">@${username}</a>`
-  )
-
-  // 第三步：处理 #话题
+  // 第二步：处理 #话题
   const hashtagRegex = /#([a-zA-Z0-9_]+)/g
   formatted = formatted.replace(
     hashtagRegex,
     (_match, hashtag) =>
-      `<a href="https://twitter.com/hashtag/${hashtag}" target="_blank" rel="noopener noreferrer" class="tweet-link" style="color: #1d9bf0; text-decoration: none;">#${hashtag}</a>`
+      `<a href="https://twitter.com/hashtag/${hashtag}" target="_blank" rel="noopener noreferrer" class="tweet-link">#${hashtag}</a>`
+  )
+
+  // 第三步：处理 @用户名
+  const mentionRegex = /@([a-zA-Z0-9_]+)/g
+  formatted = formatted.replace(
+    mentionRegex,
+    (_match, username) =>
+      `<a href="https://twitter.com/${username}" target="_blank" rel="noopener noreferrer" class="tweet-link">@${username}</a>`
   )
 
   // 第四步：恢复 URL 占位符
