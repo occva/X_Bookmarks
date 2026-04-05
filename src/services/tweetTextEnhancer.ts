@@ -1,6 +1,5 @@
 import type { Tweet, UrlEntity, Media } from '../types'
 import { extractFullText } from '../utils/tweetParser'
-import { extractTcoShortUrls, resolveShortUrls } from './shortUrlService'
 
 const SHORT_URL_REGEX = /https?:\/\/t\.co\/[A-Za-z0-9]+/gi
 
@@ -106,33 +105,10 @@ export async function enhanceTweetsText(tweets: Tweet[]): Promise<Tweet[]> {
     return tweets
   }
 
-  const intermediateTexts: string[] = []
-  const unresolvedShortUrls = new Set<string>()
-
-  tweets.forEach((tweet) => {
+  return tweets.map((tweet) => {
     const originalText = extractFullText(tweet)
     const localMap = buildLocalShortUrlMap(tweet)
-
-    const localProcessedText = applyShortUrlMap(originalText, localMap)
-    intermediateTexts.push(localProcessedText)
-
-    extractTcoShortUrls(localProcessedText).forEach((url) => unresolvedShortUrls.add(url))
-  })
-
-  let resolvedShortUrlMap: Record<string, string> = {}
-  if (unresolvedShortUrls.size > 0) {
-    try {
-      resolvedShortUrlMap = await resolveShortUrls(Array.from(unresolvedShortUrls))
-    } catch (error) {
-      console.warn('批量解析短链失败:', error)
-    }
-  }
-
-  return tweets.map((tweet, index) => {
-    const localProcessedText = intermediateTexts[index]
-    const finalText = cleanupBrokenFormattingArtifacts(
-      applyShortUrlMap(localProcessedText, resolvedShortUrlMap)
-    )
+    const finalText = cleanupBrokenFormattingArtifacts(applyShortUrlMap(originalText, localMap))
     return writeTextToTweet(tweet, finalText)
   })
 }

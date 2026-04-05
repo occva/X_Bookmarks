@@ -12,9 +12,6 @@ import { MobileLoadPage } from './pages/MobileLoadPage/MobileLoadPage'
 import { useTweets } from './hooks/useTweets'
 import { useImageModal } from './hooks/useImageModal'
 import { useToast } from './hooks/useToast'
-import { addRecentFile, getRecentFiles } from './utils/storage'
-import { getLatestSavedJSONFileURLs } from './services/localFileService'
-import { getLatestUploadedJSONFilesFromBrowser } from './services/browserFilePersistenceService'
 import type { ImageInfo } from './types'
 import styles from './App.module.css'
 
@@ -35,13 +32,16 @@ function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'bookmarks'>('home')
   const [justLoaded, setJustLoaded] = useState(false)
   const prevLoadingRef = useRef(false)
-  const hasAutoLoadedRef = useRef(false) // 标记是否已经自动加载过
   const {
     tweets,
     loading,
+    loadingMore,
     error,
+    importNotice,
+    totalTweets,
     loadTweetsFromFile,
-    loadTweetsFromURL,
+    loadMoreTweets,
+    hasMore,
     allImages,
     userStats,
   } = useTweets()
@@ -78,70 +78,6 @@ function App() {
     loadTweetsFromFile(file)
   }, [loadTweetsFromFile])
 
-  const handleURLLoad = useCallback((url: string | string[]) => {
-    setJustLoaded(true)
-    loadTweetsFromURL(url)
-  }, [loadTweetsFromURL])
-
-  // 页面刷新时自动加载最近 URL；若没有 recent 记录则回退到本地 file 最新目录
-  useEffect(() => {
-    // 防止重复执行
-    if (hasAutoLoadedRef.current) {
-      return
-    }
-
-    // 标记为已执行，避免重复加载
-    hasAutoLoadedRef.current = true
-
-    const autoLoad = async () => {
-      try {
-        const recentFiles = getRecentFiles()
-        // 只加载URL类型的最近文件，按时间戳排序，取最新的
-        const urlFiles = recentFiles.filter((f) => f.type === 'url')
-
-        if (urlFiles.length > 0) {
-          const mostRecent = urlFiles[0] // 已经按时间戳排序，第一个就是最新的
-          const urlsToLoad = mostRecent.urls && mostRecent.urls.length > 0
-            ? mostRecent.urls
-            : (mostRecent.url ? [mostRecent.url] : [])
-
-          if (urlsToLoad.length > 0) {
-            setJustLoaded(true)
-            loadTweetsFromURL(urlsToLoad)
-            return
-          }
-        }
-
-        const latestLocalURLs = await getLatestSavedJSONFileURLs()
-        if (latestLocalURLs.length > 0) {
-          const displayName =
-            latestLocalURLs.length === 1
-              ? '本地最近上传文件'
-              : `本地最近上传文件 (${latestLocalURLs.length}个)`
-          addRecentFile(
-            displayName,
-            'url',
-            latestLocalURLs[0],
-            latestLocalURLs.length > 1 ? latestLocalURLs : undefined
-          )
-          setJustLoaded(true)
-          loadTweetsFromURL(latestLocalURLs)
-          return
-        }
-
-        const latestBrowserFiles = await getLatestUploadedJSONFilesFromBrowser()
-        if (latestBrowserFiles.length > 0) {
-          setJustLoaded(true)
-          loadTweetsFromFile(latestBrowserFiles)
-        }
-      } catch (error) {
-        console.warn('自动加载最近数据失败:', error)
-      }
-    }
-
-    void autoLoad()
-  }, [loadTweetsFromFile, loadTweetsFromURL])
-
   useEffect(() => {
     const wasLoading = prevLoadingRef.current
     prevLoadingRef.current = loading
@@ -173,6 +109,13 @@ function App() {
       }
     }
   }, [error, showToast])
+
+  useEffect(() => {
+    if (!importNotice) {
+      return
+    }
+    showToast(importNotice.message, importNotice.type, 7000)
+  }, [importNotice, showToast])
 
   const handleLoadBookmarksClick = useCallback(() => {
     if (isMobileViewport()) {
@@ -220,7 +163,7 @@ function App() {
       {mobilePage === 'stats' && (
         <div className={styles.mobilePageContainer}>
           <MobileStatsPage
-            totalTweets={tweets.length}
+            totalTweets={totalTweets}
             userStats={userStats}
             onBack={handleMobileBack}
           />
@@ -231,7 +174,6 @@ function App() {
           <MobileLoadPage
             onBack={handleMobileBack}
             onFileSelect={handleFileSelect}
-            onURLLoad={handleURLLoad}
             loading={loading}
           />
         </div>
@@ -249,7 +191,6 @@ function App() {
             <Header
               ref={headerRef}
               onFileSelect={handleFileSelect}
-              onURLLoad={handleURLLoad}
               loading={loading}
             />
           </div>
@@ -259,11 +200,14 @@ function App() {
           <TweetsContainer
             tweets={tweets}
             loading={loading}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
             error={error}
+            onLoadMore={loadMoreTweets}
             onImageClick={handleImageClick}
           />
         </main>
-        <RightSidebar totalTweets={tweets.length} userStats={userStats} />
+        <RightSidebar totalTweets={totalTweets} userStats={userStats} />
       </div>
 
       <ImageModal

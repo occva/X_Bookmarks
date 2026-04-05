@@ -1,12 +1,13 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import type { Tweet, ImageInfo } from '../types'
-import { processTweetMedia, extractUserInfo, extractQuotedTweetInfo } from '../utils/tweetParser'
-import { fetchJSONFromURLs } from '../services/apiService'
-import { readJSONFromFiles } from '../services/fileService'
-import { saveUploadedJSONFiles } from '../services/localFileService'
-import { saveLatestUploadedJSONFilesToBrowser } from '../services/browserFilePersistenceService'
+import { processTweetMedia } from '../utils/tweetParser'
+import {
+  fetchTweetStats,
+  fetchTweetsPage,
+  importTweetsFromFiles,
+  type ImportResult,
+} from '../services/databaseApiService'
 import { enhanceTweetsText } from '../services/tweetTextEnhancer'
-import { addRecentFile } from '../utils/storage'
 
 export interface UserStats {
   name: string
@@ -14,242 +15,172 @@ export interface UserStats {
   count: number
 }
 
-type JSONError = Error & { isJSONError?: boolean }
-
-function markLastJSONError(message: string): void {
-  const globalWindow = window as Window & { __lastJSONError?: string }
-  globalWindow.__lastJSONError = message
+export interface ImportNotice {
+  message: string
+  type: 'success' | 'warning'
+  key: number
 }
 
-function isJSONError(error: unknown): error is JSONError {
-  return error instanceof Error && Boolean((error as JSONError).isJSONError)
+const FIRST_PAGE_LIMIT = 60
+const NEXT_PAGE_LIMIT = 40
+
+function ensureDisplayFields(tweets: Tweet[]): Tweet[] {
+  return tweets.map((tweet) => ({
+    ...tweet,
+    duplicateCount: tweet.duplicateCount ?? 1,
+  }))
 }
 
-function deduplicateTweets(tweets: Tweet[]): Tweet[] {
-  const tweetMap = new Map<string, { tweet: Tweet; count: number; index: number }>()
-  const order: string[] = []
+function buildImportNotice(result: ImportResult): ImportNotice {
+  const timingText =
+    typeof result.completedInMs === 'number' ? `，耗时 ${(result.completedInMs / 1000).toFixed(2)}s` : ''
+  const summary = `导入完成（按推文ID去重增量）：新增 ${result.inserted}，更新 ${result.updated}，失败 ${result.failed}${timingText}`
+  const firstError = result.errors[0]
 
-  tweets.forEach((tweet) => {
-    const id = tweet.id
-    if (tweetMap.has(id)) {
-      const existing = tweetMap.get(id)!
-      existing.count++
-    } else {
-      tweetMap.set(id, { tweet: { ...tweet, duplicateCount: 1 }, count: 1, index: order.length })
-      order.push(id)
-    }
-  })
-
-  const result = order.map((id) => {
-    const { tweet, count } = tweetMap.get(id)!
+  if (result.failed > 0) {
     return {
-      ...tweet,
-      duplicateCount: count,
+      message: firstError ? `${summary}。示例错误：${firstError}` : summary,
+      type: 'warning',
+      key: Date.now(),
     }
-  })
+  }
 
-  // 按 created_at 时间戳排序（降序，最新的在前）
-  return result.sort((a, b) => {
-    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
-    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
-    return dateB - dateA
-  })
+  return {
+    message: summary,
+    type: 'success',
+    key: Date.now(),
+  }
 }
 
 export function useTweets() {
   const [tweets, setTweets] = useState<Tweet[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [totalTweets, setTotalTweets] = useState(0)
+  const [userStats, setUserStats] = useState<UserStats[]>([])
 
-  const loadTweetsFromFile = useCallback(async (files: File | File[]) => {
+  const loadFirstPage = useCallback(async () => {
+    const [page, stats] = await Promise.all([
+      fetchTweetsPage(FIRST_PAGE_LIMIT, null),
+      fetchTweetStats(),
+    ])
+    const enhanced = await enhanceTweetsText(page.items)
+
+    setTweets(ensureDisplayFields(enhanced))
+    setNextCursor(page.nextCursor)
+    setTotalTweets(stats.totalTweets)
+    setUserStats(stats.userStats)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
     setLoading(true)
     setError(null)
 
-    const fileArray = Array.isArray(files) ? files : [files]
-
-    if (fileArray.length === 0) {
-      setError('请选择至少一个文件')
-      setLoading(false)
-      return
-    }
-
-    try {
+    void (async () => {
       try {
-        const { urls } = await saveUploadedJSONFiles(fileArray)
-        if (urls.length > 0) {
-          const displayName =
-            fileArray.length === 1
-              ? fileArray[0].name
-              : `${fileArray[0].name} 等 ${fileArray.length} 个文件`
-          addRecentFile(displayName, 'url', urls[0], urls.length > 1 ? urls : undefined)
+        await loadFirstPage()
+      } catch (err) {
+        if (!cancelled) {
+          const errorMessage = err instanceof Error ? err.message : '初始化加载失败'
+          setError(errorMessage)
         }
-      } catch (saveError) {
-        console.warn('自动保存到本地 file 目录失败，将继续加载文件:', saveError)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
+    })()
 
-      try {
-        await saveLatestUploadedJSONFilesToBrowser(fileArray)
-      } catch (browserSaveError) {
-        console.warn('保存到浏览器本地缓存失败，将继续加载文件:', browserSaveError)
-      }
+    return () => {
+      cancelled = true
+    }
+  }, [loadFirstPage])
 
-      const { data: allTweets, errors } = await readJSONFromFiles(fileArray)
+  const loadTweetsFromFile = useCallback(
+    async (files: File | File[]) => {
+      setLoading(true)
+      setError(null)
 
-      if (allTweets.length === 0) {
-        setError(errors.length > 0 ? errors.join('; ') : '所有文件加载失败')
+      const fileArray = Array.isArray(files) ? files : [files]
+      if (fileArray.length === 0) {
+        setError('请选择至少一个文件')
         setLoading(false)
         return
       }
 
-      if (errors.length > 0) {
-        console.warn('部分文件加载失败:', errors)
-        // 检测 JSON 格式错误
-        errors.forEach((errorMsg) => {
-          if (errorMsg.includes('JSON 格式错误') || errorMsg.includes('不是数组格式')) {
-            // 标记为 JSON 错误，将在 App.tsx 中处理
-            markLastJSONError(errorMsg)
-          }
-        })
-      }
+      try {
+        const importResult = await importTweetsFromFiles(fileArray)
+        await loadFirstPage()
+        setImportNotice(buildImportNotice(importResult))
 
-      const deduplicatedTweets = deduplicateTweets(allTweets)
-      const enhancedTweets = await enhanceTweetsText(deduplicatedTweets)
-      setTweets(enhancedTweets)
-      setLoading(false)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '加载文件时发生未知错误'
-      setError(errorMessage)
-      // 检测 JSON 格式错误
-      if (isJSONError(err)) {
-        markLastJSONError(errorMessage)
-      }
-      setLoading(false)
-    }
-  }, [])
-
-  const loadTweetsFromURL = useCallback(async (urls: string | string[]) => {
-    setLoading(true)
-    setError(null)
-
-    const urlArray = Array.isArray(urls) 
-      ? urls 
-      : urls.split('\n').map(u => u.trim()).filter(u => u.length > 0)
-
-    if (urlArray.length === 0) {
-      setError('请输入至少一个有效的 URL')
-      setLoading(false)
-      return false
-    }
-
-    try {
-      const { data: allTweets, errors } = await fetchJSONFromURLs(urlArray)
-
-      if (allTweets.length === 0) {
-        setError(errors.length > 0 ? errors.join('; ') : '所有 URL 加载失败')
-        setLoading(false)
-        return false
-      }
-
-      // 如果有部分 URL 失败，显示警告信息
-      if (errors.length > 0) {
-        const successCount = urlArray.length - errors.length
-        const errorMessage = `成功加载 ${successCount} 个 URL，${errors.length} 个失败: ${errors.join('; ')}`
-        setError(errorMessage)
-        console.warn('部分 URL 加载失败:', errors)
-        // 检测 JSON 格式错误
-        errors.forEach((errorMsg) => {
-          if (errorMsg.includes('JSON 格式错误') || errorMsg.includes('不是数组格式')) {
-            markLastJSONError(errorMsg)
-          }
-        })
-      } else {
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
         setError(null)
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : '导入文件失败'
+        setError(errorMessage)
+      } finally {
+        setLoading(false)
       }
+    },
+    [loadFirstPage]
+  )
 
-      const deduplicatedTweets = deduplicateTweets(allTweets)
-      const enhancedTweets = await enhanceTweetsText(deduplicatedTweets)
-      setTweets(enhancedTweets)
-      setLoading(false)
-      return true
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '加载过程中发生错误，请重试'
-      setError(errorMessage)
-      // 检测 JSON 格式错误
-      if (isJSONError(err)) {
-        markLastJSONError(errorMessage)
-      }
-      setLoading(false)
-      console.error('从 URL 加载失败:', err)
-      return false
+  const loadMoreTweets = useCallback(async () => {
+    if (!nextCursor || loading || loadingMore) {
+      return
     }
-  }, [])
+
+    setLoadingMore(true)
+    try {
+      const page = await fetchTweetsPage(NEXT_PAGE_LIMIT, nextCursor)
+      const enhanced = await enhanceTweetsText(page.items)
+      const normalized = ensureDisplayFields(enhanced)
+
+      setTweets((prevTweets) => {
+        const existingIds = new Set(prevTweets.map((tweet) => tweet.id))
+        const appended = normalized.filter((tweet) => !existingIds.has(tweet.id))
+        return [...prevTweets, ...appended]
+      })
+      setNextCursor(page.nextCursor)
+    } catch (err) {
+      console.warn('加载下一页失败:', err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loading, loadingMore, nextCursor])
 
   const allImages = useMemo((): ImageInfo[] => {
-    const allImages: ImageInfo[] = []
+    const images: ImageInfo[] = []
     tweets.forEach((tweet) => {
       const media = processTweetMedia(tweet.media)
-      media.forEach((m, index) => {
-        allImages.push({
-          url: m.original || m.thumbnail || '',
+      media.forEach((item, index) => {
+        images.push({
+          url: item.original || item.thumbnail || '',
           tweetId: tweet.id,
           index,
         })
       })
     })
-    return allImages
+    return images
   }, [tweets])
-
-  const getUserStats = useCallback((): UserStats[] => {
-    const userMap = new Map<string, { name: string; screenName: string; count: number }>()
-
-    tweets.forEach((tweet) => {
-      const userInfo = extractUserInfo(tweet)
-      if (userInfo.screenName) {
-        const key = userInfo.screenName.toLowerCase()
-        const existing = userMap.get(key)
-        if (existing) {
-          existing.count++
-        } else {
-          userMap.set(key, {
-            name: userInfo.name,
-            screenName: userInfo.screenName,
-            count: 1,
-          })
-        }
-      }
-
-      const quotedTweet =
-        tweet.metadata?.quoted_status_result?.result || tweet.quoted_status
-      if (quotedTweet) {
-        const quotedInfo = extractQuotedTweetInfo(quotedTweet)
-        if (quotedInfo && quotedInfo.user.screenName) {
-          const key = quotedInfo.user.screenName.toLowerCase()
-          const existing = userMap.get(key)
-          if (existing) {
-            existing.count++
-          } else {
-            userMap.set(key, {
-              name: quotedInfo.user.name,
-              screenName: quotedInfo.user.screenName,
-              count: 1,
-            })
-          }
-        }
-      }
-    })
-
-    return Array.from(userMap.values()).sort((a, b) => b.count - a.count)
-  }, [tweets])
-
-  const userStats = useMemo(() => getUserStats(), [getUserStats])
 
   return {
     tweets,
     loading,
+    loadingMore,
     error,
-    loadTweetsFromFile,
-    loadTweetsFromURL,
-    allImages,
+    importNotice,
+    totalTweets,
     userStats,
+    hasMore: nextCursor !== null,
+    loadTweetsFromFile,
+    loadMoreTweets,
+    allImages,
   }
 }

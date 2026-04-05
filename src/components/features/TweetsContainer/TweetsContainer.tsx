@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState, useEffect } from 'react'
+import { memo, useMemo, useRef, useEffect } from 'react'
 import type { Tweet, ImageInfo } from '../../../types'
 import { TweetCard } from '../TweetCard/TweetCard'
 import styles from './TweetsContainer.module.css'
@@ -6,30 +6,26 @@ import styles from './TweetsContainer.module.css'
 interface TweetsContainerProps {
   tweets: Tweet[]
   loading: boolean
+  loadingMore: boolean
+  hasMore: boolean
   error: string | null
+  onLoadMore: () => void
   onImageClick: (imageInfo: ImageInfo) => void
 }
-
-const INITIAL_RENDER_COUNT = 60
-const LOAD_MORE_COUNT = 40
 
 export const TweetsContainer = memo(function TweetsContainer({
   tweets,
   loading,
+  loadingMore,
+  hasMore,
   error,
+  onLoadMore,
   onImageClick,
 }: TweetsContainerProps) {
-  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER_COUNT)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    setVisibleCount(INITIAL_RENDER_COUNT)
-  }, [tweets, loading, error])
-
-  const hasMore = tweets.length > visibleCount
-
-  useEffect(() => {
-    if (!hasMore || loading || error || !loadMoreRef.current) {
+    if (!hasMore || loading || loadingMore || error || !loadMoreRef.current) {
       return
     }
 
@@ -37,7 +33,7 @@ export const TweetsContainer = memo(function TweetsContainer({
       (entries) => {
         const [entry] = entries
         if (entry.isIntersecting) {
-          setVisibleCount((prev) => Math.min(prev + LOAD_MORE_COUNT, tweets.length))
+          onLoadMore()
         }
       },
       {
@@ -51,7 +47,7 @@ export const TweetsContainer = memo(function TweetsContainer({
     return () => {
       observer.disconnect()
     }
-  }, [hasMore, loading, error, tweets.length])
+  }, [hasMore, loading, loadingMore, error, onLoadMore])
 
   const handleLinkClick = (e: React.MouseEvent) => {
     if (e.target instanceof HTMLElement) {
@@ -61,13 +57,8 @@ export const TweetsContainer = memo(function TweetsContainer({
     }
   }
 
-  const visibleTweets = useMemo(
-    () => tweets.slice(0, visibleCount),
-    [tweets, visibleCount]
-  )
-
   const content = useMemo(() => {
-    if (loading) {
+    if (loading && tweets.length === 0) {
       return (
         <div className={styles.emptyState}>
           <p>加载中...</p>
@@ -75,7 +66,7 @@ export const TweetsContainer = memo(function TweetsContainer({
       )
     }
 
-    if (error) {
+    if (error && tweets.length === 0) {
       return (
         <div className={styles.emptyState}>
           <p style={{ color: '#f4212e' }}>{error}</p>
@@ -96,7 +87,7 @@ export const TweetsContainer = memo(function TweetsContainer({
 
     return (
       <div onClick={handleLinkClick}>
-        {visibleTweets.map((tweet) => (
+        {tweets.map((tweet) => (
           <TweetCard key={tweet.id} tweet={tweet} onImageClick={onImageClick} />
         ))}
         {hasMore && (
@@ -106,7 +97,7 @@ export const TweetsContainer = memo(function TweetsContainer({
         )}
       </div>
     )
-  }, [visibleTweets, loading, error, onImageClick, hasMore, tweets.length])
+  }, [error, hasMore, loading, onImageClick, tweets])
 
   return <div className={styles.tweetsContainer}>{content}</div>
 })
