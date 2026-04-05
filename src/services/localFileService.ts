@@ -21,6 +21,11 @@ const LOCAL_FILE_API = {
 const REQUEST_TIMEOUT = 8000
 let localFileAPIAvailable: boolean | null = null
 
+function isJSONResponse(response: Response): boolean {
+  const contentType = response.headers.get('Content-Type') || response.headers.get('content-type') || ''
+  return contentType.toLowerCase().includes('application/json')
+}
+
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
@@ -41,7 +46,13 @@ async function isLocalFileAPIAvailable(): Promise<boolean> {
 
   try {
     const response = await fetchWithTimeout(LOCAL_FILE_API.LATEST, { method: 'GET' })
-    localFileAPIAvailable = response.ok
+    if (!response.ok || !isJSONResponse(response)) {
+      localFileAPIAvailable = false
+      return false
+    }
+
+    const data = (await response.json().catch(() => null)) as LatestResponse | null
+    localFileAPIAvailable = Boolean(data && Array.isArray(data.files))
   } catch {
     localFileAPIAvailable = false
   }
@@ -74,13 +85,23 @@ export async function saveUploadedJSONFiles(files: File[]): Promise<{ folderTime
   })
 
   if (!response.ok) {
+    if (response.status === 404 || response.status === 405) {
+      localFileAPIAvailable = false
+      return { folderTimestamp: '', urls: [] }
+    }
     const message = await response.text()
     throw new Error(message || `本地保存失败（HTTP ${response.status}）`)
   }
 
-  const data = (await response.json()) as UploadResponse
-  if (!data.folderTimestamp || !Array.isArray(data.files)) {
-    throw new Error('本地保存返回格式错误')
+  if (!isJSONResponse(response)) {
+    localFileAPIAvailable = false
+    return { folderTimestamp: '', urls: [] }
+  }
+
+  const data = (await response.json().catch(() => null)) as UploadResponse | null
+  if (!data || !data.folderTimestamp || !Array.isArray(data.files)) {
+    localFileAPIAvailable = false
+    return { folderTimestamp: '', urls: [] }
   }
 
   const urls = data.files.map((item) => item.url).filter((url) => typeof url === 'string' && url.length > 0)
@@ -104,11 +125,20 @@ export async function getLatestSavedJSONFileURLs(): Promise<string[]> {
   })
 
   if (!response.ok) {
-    throw new Error(`获取最新本地文件失败（HTTP ${response.status}）`)
+    if (response.status === 404 || response.status === 405) {
+      localFileAPIAvailable = false
+    }
+    return []
   }
 
-  const data = (await response.json()) as LatestResponse
-  if (!Array.isArray(data.files)) {
+  if (!isJSONResponse(response)) {
+    localFileAPIAvailable = false
+    return []
+  }
+
+  const data = (await response.json().catch(() => null)) as LatestResponse | null
+  if (!data || !Array.isArray(data.files)) {
+    localFileAPIAvailable = false
     return []
   }
 
