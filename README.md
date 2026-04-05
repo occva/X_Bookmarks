@@ -85,29 +85,34 @@ pnpm deploy:pages
 ## 项目结构
 
 ```
-src/
-├── components/          # 页面组件（features/layout/ui）
-├── constants/           # 常量
-├── contexts/            # React Context
-├── hooks/               # 自定义 Hooks
-├── pages/               # 移动端页面
-├── services/            # 前端 API 服务
-├── styles/              # 全局样式
-├── types/               # TS 类型定义
-├── utils/               # 工具函数
-├── App.tsx              # 根组件
-└── main.tsx             # 入口
-
-worker/
-├── index.mjs            # Cloudflare Worker API（/api/*）
-└── tweet-normalizer.mjs # 推文标准化
+.github/workflows/
+└── cloudflare-deploy.yml # Cloudflare 自动部署（Worker + Pages）
 
 db/
-└── migrations/          # D1 迁移脚本
+└── migrations/           # D1 迁移脚本
 
 public/
-├── _worker.js           # Pages 同域 API 代理
-└── _redirects           # SPA 路由回退
+├── _worker.js            # Pages 同域 API 代理
+└── _redirects            # SPA 路由回退
+
+src/
+├── components/
+│   ├── features/         # 推文卡片、媒体、列表、统计等业务组件
+│   ├── layout/           # 头部、侧边栏、底部导航等布局组件
+│   └── ui/               # Toast、ImageModal 等通用 UI
+├── constants/            # 常量
+├── hooks/                # 自定义 Hooks
+├── pages/                # 移动端页面
+├── services/             # 前端 API 服务
+├── styles/               # 全局样式
+├── types/                # TS 类型定义
+├── utils/                # 工具函数
+├── App.tsx               # 根组件
+└── main.tsx              # 入口
+
+worker/
+├── index.mjs             # Cloudflare Worker API（/api/*）
+└── tweet-normalizer.mjs  # 推文标准化
 ```
 
 ## 获取数据
@@ -120,15 +125,16 @@ public/
 
 ## 使用方法
 
-1. 点击页面上的"选择 JSON 文件"按钮
-2. 选择 twitter-web-exporter 导出的书签 JSON 文件
-3. 推文会自动加载并显示
+1. 点击页面上的“选择 JSON 文件”上传导出的书签文件（支持多文件）
+2. 后端按推文 ID 去重增量导入到 D1（新增/更新/失败会给出提示）
+3. 前端自动刷新第一页，继续下滑到底会自动加载下一页
 
 ## 功能特性
 
 ### 数据加载
-- 支持本地 JSON 文件选择加载
-- 自动解析 twitter-web-exporter 导出的书签数据格式
+- 支持本地 JSON 文件上传并导入 D1
+- 导入完成后自动刷新列表
+- 列表采用滚动分页，滑到底自动加载下一页
 
 ### 推文展示
 - 完整的推文内容展示（文本、媒体、引用推文）
