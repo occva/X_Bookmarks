@@ -58,6 +58,29 @@ pnpm build
 pnpm deploy:pages
 ```
 
+## 自动部署（GitHub Actions）
+
+已提供工作流：`.github/workflows/cloudflare-deploy.yml`
+
+- 触发分支：`master`、`main`
+- 自动执行：
+  - Worker 发布（含 D1 远程迁移）
+  - Pages 发布
+
+需要在 GitHub 仓库 Secrets 配置：
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+## 关闭 Vercel 自动部署
+
+当前仓库已删除 `vercel.json`，但若 GitHub 仍显示 `vercel[bot]` Deployments，
+说明 Vercel Git 集成仍连接仓库。需要在 Vercel 控制台中断开：
+
+1. Vercel Project Settings -> Git
+2. Disconnect Repository 或关闭 Auto-deploy
+3. （可选）删除 Vercel 项目，彻底停止后续部署状态回写
+
 
 ## 项目结构
 
