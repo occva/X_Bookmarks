@@ -4,6 +4,7 @@ import { processTweetMedia, extractUserInfo, extractQuotedTweetInfo } from '../u
 import { fetchJSONFromURLs } from '../services/apiService'
 import { readJSONFromFiles } from '../services/fileService'
 import { saveUploadedJSONFiles } from '../services/localFileService'
+import { saveLatestUploadedJSONFilesToBrowser } from '../services/browserFilePersistenceService'
 import { enhanceTweetsText } from '../services/tweetTextEnhancer'
 import { addRecentFile } from '../utils/storage'
 
@@ -84,6 +85,12 @@ export function useTweets() {
         }
       } catch (saveError) {
         console.warn('自动保存到本地 file 目录失败，将继续加载文件:', saveError)
+      }
+
+      try {
+        await saveLatestUploadedJSONFilesToBrowser(fileArray)
+      } catch (browserSaveError) {
+        console.warn('保存到浏览器本地缓存失败，将继续加载文件:', browserSaveError)
       }
 
       const { data: allTweets, errors } = await readJSONFromFiles(fileArray)

@@ -19,7 +19,7 @@ const LOCAL_FILE_API = {
 } as const
 
 const REQUEST_TIMEOUT = 8000
-const LOCAL_FILE_API_ENABLED = import.meta.env.DEV
+let localFileAPIAvailable: boolean | null = null
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
@@ -34,8 +34,23 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): P
   }
 }
 
+async function isLocalFileAPIAvailable(): Promise<boolean> {
+  if (localFileAPIAvailable !== null) {
+    return localFileAPIAvailable
+  }
+
+  try {
+    const response = await fetchWithTimeout(LOCAL_FILE_API.LATEST, { method: 'GET' })
+    localFileAPIAvailable = response.ok
+  } catch {
+    localFileAPIAvailable = false
+  }
+
+  return localFileAPIAvailable
+}
+
 export async function saveUploadedJSONFiles(files: File[]): Promise<{ folderTimestamp: string; urls: string[] }> {
-  if (!LOCAL_FILE_API_ENABLED) {
+  if (!(await isLocalFileAPIAvailable())) {
     return { folderTimestamp: '', urls: [] }
   }
 
@@ -80,7 +95,7 @@ export async function saveUploadedJSONFiles(files: File[]): Promise<{ folderTime
 }
 
 export async function getLatestSavedJSONFileURLs(): Promise<string[]> {
-  if (!LOCAL_FILE_API_ENABLED) {
+  if (!(await isLocalFileAPIAvailable())) {
     return []
   }
 

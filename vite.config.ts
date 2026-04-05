@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 
 const LOCAL_FILE_API_PREFIX = '/api/local-files'
 const LOCAL_FILE_ROOT = path.resolve(process.cwd(), 'file')
@@ -223,127 +224,136 @@ async function resolveShortURL(url: string): Promise<string> {
 }
 
 function localFilePersistencePlugin(): Plugin {
+  const middleware = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    next: () => void
+  ) => {
+    if (!req.url || !req.url.startsWith(LOCAL_FILE_API_PREFIX)) {
+      next()
+      return
+    }
+
+    const requestURL = new URL(req.url, 'http://localhost')
+    const { pathname, searchParams } = requestURL
+
+    if (req.method === 'POST' && pathname === `${LOCAL_FILE_API_PREFIX}/upload`) {
+      try {
+        const body = (await parseJSONBody(req)) as { files?: UploadRequestFile[] }
+        const files = Array.isArray(body.files) ? body.files : []
+        if (files.length === 0) {
+          sendJSON(res, 400, { message: '缺少 files 参数' })
+          return
+        }
+
+        const folderTimestamp = Date.now().toString()
+        const folderPath = path.join(LOCAL_FILE_ROOT, folderTimestamp)
+        await fs.mkdir(folderPath, { recursive: true })
+
+        const savedFiles: Array<{ name: string; url: string }> = []
+        for (const file of files) {
+          if (typeof file?.name !== 'string' || typeof file?.content !== 'string') {
+            continue
+          }
+          const sanitizedName = sanitizeFileName(file.name)
+          const uniqueName = await getUniqueFileName(folderPath, sanitizedName)
+          const fullFilePath = path.join(folderPath, uniqueName)
+          await fs.writeFile(fullFilePath, file.content, 'utf-8')
+          savedFiles.push({
+            name: uniqueName,
+            url: getReadURL(folderTimestamp, uniqueName),
+          })
+        }
+
+        if (savedFiles.length === 0) {
+          sendJSON(res, 400, { message: '没有可保存的文件内容' })
+          return
+        }
+
+        sendJSON(res, 200, {
+          folderTimestamp,
+          files: savedFiles,
+        })
+        return
+      } catch (error) {
+        const message = error instanceof Error ? error.message : '保存文件失败'
+        sendJSON(res, 500, { message })
+        return
+      }
+    }
+
+    if (req.method === 'GET' && pathname === `${LOCAL_FILE_API_PREFIX}/read`) {
+      const folder = searchParams.get('folder') || ''
+      const name = searchParams.get('name') || ''
+
+      if (!isSafePathSegment(folder) || !isSafePathSegment(name)) {
+        sendJSON(res, 400, { message: '非法路径参数' })
+        return
+      }
+
+      const targetPath = path.resolve(LOCAL_FILE_ROOT, folder, name)
+      const relativePath = path.relative(LOCAL_FILE_ROOT, targetPath)
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        sendJSON(res, 400, { message: '非法路径参数' })
+        return
+      }
+
+      try {
+        const content = await fs.readFile(targetPath, 'utf-8')
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.end(content)
+        return
+      } catch {
+        sendJSON(res, 404, { message: '文件不存在' })
+        return
+      }
+    }
+
+    if (req.method === 'GET' && pathname === `${LOCAL_FILE_API_PREFIX}/latest`) {
+      const folderTimestamp = await getLatestFolderTimestamp()
+      if (!folderTimestamp) {
+        sendJSON(res, 200, { folderTimestamp: null, files: [] })
+        return
+      }
+
+      const folderPath = path.join(LOCAL_FILE_ROOT, folderTimestamp)
+      const fileNames = (await fs.readdir(folderPath))
+        .filter((fileName) => fileName.toLowerCase().endsWith('.json'))
+        .sort((a, b) => a.localeCompare(b))
+
+      sendJSON(res, 200, {
+        folderTimestamp,
+        files: fileNames.map((name) => ({
+          name,
+          url: getReadURL(folderTimestamp, name),
+        })),
+      })
+      return
+    }
+
+    if (req.method === 'GET' && pathname === `${LOCAL_FILE_API_PREFIX}/resolve`) {
+      const shortUrl = searchParams.get('url') || ''
+      if (!isHttpURL(shortUrl)) {
+        sendJSON(res, 400, { message: 'url 参数不是合法链接' })
+        return
+      }
+
+      const resolvedUrl = await resolveShortURL(shortUrl)
+      sendJSON(res, 200, { shortUrl, resolvedUrl })
+      return
+    }
+
+    next()
+  }
+
   return {
     name: 'local-file-persistence',
     configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        if (!req.url || !req.url.startsWith(LOCAL_FILE_API_PREFIX)) {
-          next()
-          return
-        }
-
-        const requestURL = new URL(req.url, 'http://localhost')
-        const { pathname, searchParams } = requestURL
-
-        if (req.method === 'POST' && pathname === `${LOCAL_FILE_API_PREFIX}/upload`) {
-          try {
-            const body = (await parseJSONBody(req)) as { files?: UploadRequestFile[] }
-            const files = Array.isArray(body.files) ? body.files : []
-            if (files.length === 0) {
-              sendJSON(res, 400, { message: '缺少 files 参数' })
-              return
-            }
-
-            const folderTimestamp = Date.now().toString()
-            const folderPath = path.join(LOCAL_FILE_ROOT, folderTimestamp)
-            await fs.mkdir(folderPath, { recursive: true })
-
-            const savedFiles: Array<{ name: string; url: string }> = []
-            for (const file of files) {
-              if (typeof file?.name !== 'string' || typeof file?.content !== 'string') {
-                continue
-              }
-              const sanitizedName = sanitizeFileName(file.name)
-              const uniqueName = await getUniqueFileName(folderPath, sanitizedName)
-              const fullFilePath = path.join(folderPath, uniqueName)
-              await fs.writeFile(fullFilePath, file.content, 'utf-8')
-              savedFiles.push({
-                name: uniqueName,
-                url: getReadURL(folderTimestamp, uniqueName),
-              })
-            }
-
-            if (savedFiles.length === 0) {
-              sendJSON(res, 400, { message: '没有可保存的文件内容' })
-              return
-            }
-
-            sendJSON(res, 200, {
-              folderTimestamp,
-              files: savedFiles,
-            })
-            return
-          } catch (error) {
-            const message = error instanceof Error ? error.message : '保存文件失败'
-            sendJSON(res, 500, { message })
-            return
-          }
-        }
-
-        if (req.method === 'GET' && pathname === `${LOCAL_FILE_API_PREFIX}/read`) {
-          const folder = searchParams.get('folder') || ''
-          const name = searchParams.get('name') || ''
-
-          if (!isSafePathSegment(folder) || !isSafePathSegment(name)) {
-            sendJSON(res, 400, { message: '非法路径参数' })
-            return
-          }
-
-          const targetPath = path.resolve(LOCAL_FILE_ROOT, folder, name)
-          const relativePath = path.relative(LOCAL_FILE_ROOT, targetPath)
-          if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-            sendJSON(res, 400, { message: '非法路径参数' })
-            return
-          }
-
-          try {
-            const content = await fs.readFile(targetPath, 'utf-8')
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(content)
-            return
-          } catch {
-            sendJSON(res, 404, { message: '文件不存在' })
-            return
-          }
-        }
-
-        if (req.method === 'GET' && pathname === `${LOCAL_FILE_API_PREFIX}/latest`) {
-          const folderTimestamp = await getLatestFolderTimestamp()
-          if (!folderTimestamp) {
-            sendJSON(res, 200, { folderTimestamp: null, files: [] })
-            return
-          }
-
-          const folderPath = path.join(LOCAL_FILE_ROOT, folderTimestamp)
-          const fileNames = (await fs.readdir(folderPath))
-            .filter((fileName) => fileName.toLowerCase().endsWith('.json'))
-            .sort((a, b) => a.localeCompare(b))
-
-          sendJSON(res, 200, {
-            folderTimestamp,
-            files: fileNames.map((name) => ({
-              name,
-              url: getReadURL(folderTimestamp, name),
-            })),
-          })
-          return
-        }
-
-        if (req.method === 'GET' && pathname === `${LOCAL_FILE_API_PREFIX}/resolve`) {
-          const shortUrl = searchParams.get('url') || ''
-          if (!isHttpURL(shortUrl)) {
-            sendJSON(res, 400, { message: 'url 参数不是合法链接' })
-            return
-          }
-
-          const resolvedUrl = await resolveShortURL(shortUrl)
-          sendJSON(res, 200, { shortUrl, resolvedUrl })
-          return
-        }
-
-        next()
-      })
+      server.middlewares.use(middleware)
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware)
     },
   }
 }

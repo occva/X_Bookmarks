@@ -14,6 +14,7 @@ import { useImageModal } from './hooks/useImageModal'
 import { useToast } from './hooks/useToast'
 import { addRecentFile, getRecentFiles } from './utils/storage'
 import { getLatestSavedJSONFileURLs } from './services/localFileService'
+import { getLatestUploadedJSONFilesFromBrowser } from './services/browserFilePersistenceService'
 import type { ImageInfo } from './types'
 import styles from './App.module.css'
 
@@ -125,6 +126,13 @@ function App() {
           )
           setJustLoaded(true)
           loadTweetsFromURL(latestLocalURLs)
+          return
+        }
+
+        const latestBrowserFiles = await getLatestUploadedJSONFilesFromBrowser()
+        if (latestBrowserFiles.length > 0) {
+          setJustLoaded(true)
+          loadTweetsFromFile(latestBrowserFiles)
         }
       } catch (error) {
         console.warn('自动加载最近数据失败:', error)
@@ -132,7 +140,7 @@ function App() {
     }
 
     void autoLoad()
-  }, [loadTweetsFromURL])
+  }, [loadTweetsFromFile, loadTweetsFromURL])
 
   useEffect(() => {
     const wasLoading = prevLoadingRef.current
