@@ -15,9 +15,47 @@
 
 ```bash
 pnpm install
+pnpm d1:migrate:local
 pnpm dev
 pnpm build
 pnpm lint
+```
+
+## Cloudflare D1（当前后端）
+
+- 后端已改为 Cloudflare Worker + D1，接口仍是 `/api/*`
+- Worker 入口：`worker/index.mjs`
+- D1 迁移文件：`db/migrations/0001_init.sql`
+
+首次使用请先修改 `wrangler.toml`：
+
+1. 把 `database_id` 改成你自己的 D1 数据库 ID
+2. 确保 `database_name` 与你的 D1 名称一致
+
+常用命令：
+
+```bash
+# 本地应用迁移
+pnpm d1:migrate:local
+
+# 远程应用迁移
+pnpm d1:migrate:remote
+
+# 部署 Worker
+pnpm deploy:worker
+```
+
+## 部署到 Cloudflare Pages（前端）
+
+Pages 已通过 `public/_worker.js` 代理 `/api/*` 到 Worker，
+前端默认同域调用 `/api/*`，不再直接跨域请求 `workers.dev`。
+如需覆盖，可在构建前设置环境变量：`VITE_API_BASE_URL`。
+
+部署命令：
+
+```bash
+pnpm build
+pnpm deploy:pages
 ```
 
 
@@ -25,24 +63,29 @@ pnpm lint
 
 ```
 src/
-├── components/          # React 组件
-│   ├── Sidebar/         # 左侧导航栏
-│   ├── Header/          # 顶部标题栏
-│   ├── TweetCard/       # 推文卡片
-│   ├── TweetMedia/      # 推文媒体（图片）
-│   ├── QuotedTweet/     # 引用推文
-│   ├── ImageModal/      # 图片放大模态框
-│   └── TweetsContainer/ # 推文容器
+├── components/          # 页面组件（features/layout/ui）
+├── constants/           # 常量
+├── contexts/            # React Context
 ├── hooks/               # 自定义 Hooks
+├── pages/               # 移动端页面
+├── services/            # 前端 API 服务
+├── styles/              # 全局样式
+├── types/               # TS 类型定义
 ├── utils/               # 工具函数
-├── types/               # TypeScript 类型定义
-└── App.tsx              # 根组件
+├── App.tsx              # 根组件
+└── main.tsx             # 入口
+
+worker/
+├── index.mjs            # Cloudflare Worker API（/api/*）
+└── tweet-normalizer.mjs # 推文标准化
+
+db/
+└── migrations/          # D1 迁移脚本
+
+public/
+├── _worker.js           # Pages 同域 API 代理
+└── _redirects           # SPA 路由回退
 ```
-
-## 部署到 Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/occva/X_Bookmarks)
-
 
 ## 获取数据
 
@@ -62,7 +105,6 @@ src/
 
 ### 数据加载
 - 支持本地 JSON 文件选择加载
-- 支持从 URL 加载 JSON 数据
 - 自动解析 twitter-web-exporter 导出的书签数据格式
 
 ### 推文展示
