@@ -5,7 +5,13 @@
   "type": "module",
   "description": "Twitter 书签查看器 - 使用 React + TypeScript 构建",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k \"pnpm dev:web\" \"pnpm dev:worker\"",
+    "dev:web": "vite",
+    "dev:worker": "wrangler dev --config wrangler.toml --port 3001",
+    "deploy:worker": "wrangler deploy --config wrangler.toml",
+    "deploy:pages": "wrangler pages deploy dist --project-name x-bookmarks-web --branch main --commit-dirty=true",
+    "d1:migrate:local": "wrangler d1 migrations apply x_bookmarks --local --config wrangler.toml",
+    "d1:migrate:remote": "wrangler d1 migrations apply x_bookmarks --remote --config wrangler.toml",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
@@ -22,12 +28,14 @@
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitejs/plugin-react": "^5.1.4",
+    "concurrently": "^9.2.1",
     "eslint": "^10.0.3",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "wrangler": "^4.0.0"
   }
 }

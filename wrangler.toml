@@ -1,0 +1,9 @@
+name = "x-bookmarks"
+main = "worker/index.mjs"
+compatibility_date = "2025-12-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "x_bookmarks"
+database_id = "86e66906-51fc-40cc-b49f-71624a782626"
+migrations_dir = "db/migrations"
