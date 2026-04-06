@@ -5,10 +5,20 @@ import styles from './MobileStatsPage.module.css'
 interface MobileStatsPageProps {
   totalTweets: number
   userStats: UserStats[]
+  activeAuthorScreenName: string | null
+  onUserCountClick: (screenName: string) => void
+  onClearFilter: () => void
   onBack: () => void
 }
 
-export function MobileStatsPage({ totalTweets, userStats, onBack }: MobileStatsPageProps) {
+export function MobileStatsPage({
+  totalTweets,
+  userStats,
+  activeAuthorScreenName,
+  onUserCountClick,
+  onClearFilter,
+  onBack,
+}: MobileStatsPageProps) {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -21,7 +31,13 @@ export function MobileStatsPage({ totalTweets, userStats, onBack }: MobileStatsP
         <div className={styles.placeholder} />
       </div>
       <div className={styles.content}>
-        <StatsCard totalTweets={totalTweets} userStats={userStats} />
+        <StatsCard
+          totalTweets={totalTweets}
+          userStats={userStats}
+          activeAuthorScreenName={activeAuthorScreenName}
+          onUserCountClick={onUserCountClick}
+          onClearFilter={onClearFilter}
+        />
       </div>
     </div>
   )

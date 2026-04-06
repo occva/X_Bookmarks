@@ -44,6 +44,9 @@ function App() {
     hasMore,
     allImages,
     userStats,
+    activeAuthorScreenName,
+    toggleAuthorFilter,
+    clearAuthorFilter,
   } = useTweets()
 
   const {
@@ -156,6 +159,28 @@ function App() {
     setMobilePage('home')
   }, [])
 
+  const handleUserFilter = useCallback((screenName: string) => {
+    toggleAuthorFilter(screenName)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    if (isMobileViewport()) {
+      setMobilePage('home')
+      setCurrentPage('home')
+    }
+  }, [toggleAuthorFilter])
+
+  const handleClearUserFilter = useCallback(() => {
+    clearAuthorFilter()
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    if (isMobileViewport()) {
+      setMobilePage('home')
+      setCurrentPage('home')
+    }
+  }, [clearAuthorFilter])
+
   const shouldHideMainContent = isMobileViewport() && mobilePage !== 'home'
 
   return (
@@ -165,6 +190,9 @@ function App() {
           <MobileStatsPage
             totalTweets={totalTweets}
             userStats={userStats}
+            activeAuthorScreenName={activeAuthorScreenName}
+            onUserCountClick={handleUserFilter}
+            onClearFilter={handleClearUserFilter}
             onBack={handleMobileBack}
           />
         </div>
@@ -207,7 +235,13 @@ function App() {
             onImageClick={handleImageClick}
           />
         </main>
-        <RightSidebar totalTweets={totalTweets} userStats={userStats} />
+        <RightSidebar
+          totalTweets={totalTweets}
+          userStats={userStats}
+          activeAuthorScreenName={activeAuthorScreenName}
+          onUserCountClick={handleUserFilter}
+          onClearFilter={handleClearUserFilter}
+        />
       </div>
 
       <ImageModal
