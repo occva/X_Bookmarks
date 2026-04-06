@@ -130,25 +130,53 @@ function parseTweetJson(row) {
   }
 }
 
-async function queryTweetsPage(db, cursor, limit) {
-  const statement = cursor
-    ? db
-        .prepare(`
-          SELECT id, created_at_ms, tweet_json
-          FROM tweets
-          WHERE created_at_ms < ? OR (created_at_ms = ? AND id < ?)
-          ORDER BY created_at_ms DESC, id DESC
-          LIMIT ?
-        `)
-        .bind(cursor.createdAtMs, cursor.createdAtMs, cursor.id, limit)
-    : db
-        .prepare(`
-          SELECT id, created_at_ms, tweet_json
-          FROM tweets
-          ORDER BY created_at_ms DESC, id DESC
-          LIMIT ?
-        `)
-        .bind(limit)
+async function queryTweetsPage(db, cursor, limit, authorScreenName) {
+  const normalizedAuthor =
+    typeof authorScreenName === 'string' ? authorScreenName.trim() : ''
+  const hasAuthorFilter = normalizedAuthor.length > 0
+
+  let statement
+  if (hasAuthorFilter && cursor) {
+    statement = db
+      .prepare(`
+        SELECT id, created_at_ms, tweet_json
+        FROM tweets
+        WHERE author_screen_name = ?
+          AND (created_at_ms < ? OR (created_at_ms = ? AND id < ?))
+        ORDER BY created_at_ms DESC, id DESC
+        LIMIT ?
+      `)
+      .bind(normalizedAuthor, cursor.createdAtMs, cursor.createdAtMs, cursor.id, limit)
+  } else if (hasAuthorFilter) {
+    statement = db
+      .prepare(`
+        SELECT id, created_at_ms, tweet_json
+        FROM tweets
+        WHERE author_screen_name = ?
+        ORDER BY created_at_ms DESC, id DESC
+        LIMIT ?
+      `)
+      .bind(normalizedAuthor, limit)
+  } else if (cursor) {
+    statement = db
+      .prepare(`
+        SELECT id, created_at_ms, tweet_json
+        FROM tweets
+        WHERE created_at_ms < ? OR (created_at_ms = ? AND id < ?)
+        ORDER BY created_at_ms DESC, id DESC
+        LIMIT ?
+      `)
+      .bind(cursor.createdAtMs, cursor.createdAtMs, cursor.id, limit)
+  } else {
+    statement = db
+      .prepare(`
+        SELECT id, created_at_ms, tweet_json
+        FROM tweets
+        ORDER BY created_at_ms DESC, id DESC
+        LIMIT ?
+      `)
+      .bind(limit)
+  }
 
   const queried = await statement.all()
   const rows = Array.isArray(queried.results) ? queried.results : []
@@ -406,7 +434,8 @@ export default {
     if (pathname === '/api/tweets' && request.method === 'GET') {
       const cursor = decodeCursor(url.searchParams.get('cursor') || '')
       const limit = getPageLimit(url.searchParams.get('limit'), DEFAULT_PAGE_LIMIT)
-      const page = await queryTweetsPage(env.DB, cursor, limit)
+      const author = url.searchParams.get('author') || ''
+      const page = await queryTweetsPage(env.DB, cursor, limit, author)
       return jsonResponse(page)
     }
 

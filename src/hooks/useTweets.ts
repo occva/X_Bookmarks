@@ -24,11 +24,26 @@ export interface ImportNotice {
 const FIRST_PAGE_LIMIT = 60
 const NEXT_PAGE_LIMIT = 40
 
+interface FirstPageSnapshot {
+  tweets: Tweet[]
+  nextCursor: string | null
+  totalTweets: number
+  userStats: UserStats[]
+}
+
 function ensureDisplayFields(tweets: Tweet[]): Tweet[] {
   return tweets.map((tweet) => ({
     ...tweet,
     duplicateCount: tweet.duplicateCount ?? 1,
   }))
+}
+
+function normalizeScreenName(screenName?: string | null): string | null {
+  if (!screenName) {
+    return null
+  }
+  const trimmed = screenName.trim()
+  return trimmed ? trimmed : null
 }
 
 function buildImportNotice(result: ImportResult): ImportNotice {
@@ -61,28 +76,39 @@ export function useTweets() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [totalTweets, setTotalTweets] = useState(0)
   const [userStats, setUserStats] = useState<UserStats[]>([])
+  const [activeAuthorScreenName, setActiveAuthorScreenName] = useState<string | null>(null)
 
-  const loadFirstPage = useCallback(async () => {
+  const loadFirstPage = useCallback(async (authorScreenName: string | null): Promise<FirstPageSnapshot> => {
     const [page, stats] = await Promise.all([
-      fetchTweetsPage(FIRST_PAGE_LIMIT, null),
+      fetchTweetsPage(FIRST_PAGE_LIMIT, null, authorScreenName),
       fetchTweetStats(),
     ])
     const enhanced = await enhanceTweetsText(page.items)
 
-    setTweets(ensureDisplayFields(enhanced))
-    setNextCursor(page.nextCursor)
-    setTotalTweets(stats.totalTweets)
-    setUserStats(stats.userStats)
+    return {
+      tweets: ensureDisplayFields(enhanced),
+      nextCursor: page.nextCursor,
+      totalTweets: stats.totalTweets,
+      userStats: stats.userStats,
+    }
   }, [])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setLoadingMore(false)
     setError(null)
 
     void (async () => {
       try {
-        await loadFirstPage()
+        const firstPage = await loadFirstPage(activeAuthorScreenName)
+        if (cancelled) {
+          return
+        }
+        setTweets(firstPage.tweets)
+        setNextCursor(firstPage.nextCursor)
+        setTotalTweets(firstPage.totalTweets)
+        setUserStats(firstPage.userStats)
       } catch (err) {
         if (!cancelled) {
           const errorMessage = err instanceof Error ? err.message : '初始化加载失败'
@@ -98,7 +124,7 @@ export function useTweets() {
     return () => {
       cancelled = true
     }
-  }, [loadFirstPage])
+  }, [activeAuthorScreenName, loadFirstPage])
 
   const loadTweetsFromFile = useCallback(
     async (files: File | File[]) => {
@@ -114,7 +140,11 @@ export function useTweets() {
 
       try {
         const importResult = await importTweetsFromFiles(fileArray)
-        await loadFirstPage()
+        const firstPage = await loadFirstPage(activeAuthorScreenName)
+        setTweets(firstPage.tweets)
+        setNextCursor(firstPage.nextCursor)
+        setTotalTweets(firstPage.totalTweets)
+        setUserStats(firstPage.userStats)
         setImportNotice(buildImportNotice(importResult))
 
         if (typeof window !== 'undefined') {
@@ -128,7 +158,7 @@ export function useTweets() {
         setLoading(false)
       }
     },
-    [loadFirstPage]
+    [activeAuthorScreenName, loadFirstPage]
   )
 
   const loadMoreTweets = useCallback(async () => {
@@ -138,7 +168,7 @@ export function useTweets() {
 
     setLoadingMore(true)
     try {
-      const page = await fetchTweetsPage(NEXT_PAGE_LIMIT, nextCursor)
+      const page = await fetchTweetsPage(NEXT_PAGE_LIMIT, nextCursor, activeAuthorScreenName)
       const enhanced = await enhanceTweetsText(page.items)
       const normalized = ensureDisplayFields(enhanced)
 
@@ -153,7 +183,19 @@ export function useTweets() {
     } finally {
       setLoadingMore(false)
     }
-  }, [loading, loadingMore, nextCursor])
+  }, [activeAuthorScreenName, loading, loadingMore, nextCursor])
+
+  const toggleAuthorFilter = useCallback((screenName: string) => {
+    const normalized = normalizeScreenName(screenName)
+    if (!normalized) {
+      return
+    }
+    setActiveAuthorScreenName((prev) => (prev === normalized ? null : normalized))
+  }, [])
+
+  const clearAuthorFilter = useCallback(() => {
+    setActiveAuthorScreenName(null)
+  }, [])
 
   const allImages = useMemo((): ImageInfo[] => {
     const images: ImageInfo[] = []
@@ -178,9 +220,12 @@ export function useTweets() {
     importNotice,
     totalTweets,
     userStats,
+    activeAuthorScreenName,
     hasMore: nextCursor !== null,
     loadTweetsFromFile,
     loadMoreTweets,
+    toggleAuthorFilter,
+    clearAuthorFilter,
     allImages,
   }
 }

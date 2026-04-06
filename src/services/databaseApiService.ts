@@ -121,11 +121,18 @@ export async function importTweetsFromFiles(files: File[]): Promise<ImportResult
   return (await response.json()) as ImportResult
 }
 
-export async function fetchTweetsPage(limit: number, cursor?: string | null): Promise<TweetsPage> {
+export async function fetchTweetsPage(
+  limit: number,
+  cursor?: string | null,
+  authorScreenName?: string | null
+): Promise<TweetsPage> {
   const requestURL = new URL(buildApiURL(API_ENDPOINTS.TWEETS), window.location.origin)
   requestURL.searchParams.set('limit', String(limit))
   if (cursor) {
     requestURL.searchParams.set('cursor', cursor)
+  }
+  if (authorScreenName) {
+    requestURL.searchParams.set('author', authorScreenName)
   }
 
   const response = await fetchWithTimeout(requestURL.toString(), { method: 'GET' })
